@@ -100,20 +100,6 @@ class ComfyUi {
                             name: 'nodeParameter',
                             values: [
                                 {
-                                    displayName: 'Binary Property',
-                                    name: 'binaryPropertyName',
-                                    type: 'string',
-                                    default: 'data',
-                                    description: 'Name of the binary property to upload (default:	data). The first binary item will be used.',
-                                    placeholder: 'data',
-                                    displayOptions: {
-                                        show: {
-                                            parameterMode: ['single'],
-                                            type: ['binary'],
-                                        },
-                                    },
-                                },
-                                {
                                     displayName: 'Node ID',
                                     name: 'nodeId',
                                     type: 'string',
@@ -256,6 +242,21 @@ class ComfyUi {
                                             type: ['boolean'],
                                         },
                                     },
+                                },
+                                {
+                                    displayName: 'Binary Property',
+                                    name: 'binaryPropertyName',
+                                    type: 'string',
+                                    default: 'data',
+                                    description: 'Binary property name to use as input (default: data). This specifies which binary data from previous nodes to upload to ComfyUI.',
+                                    placeholder: 'data',
+                                    displayOptions: {
+                                        show: {
+                                            parameterMode: ['single'],
+                                            type: ['binary'],
+                                        },
+                                    },
+                                    hint: 'Enter the binary property name from input data (e.g., "data", "image", "file").',
                                 },
                             ],
                         },
