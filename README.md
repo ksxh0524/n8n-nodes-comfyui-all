@@ -131,21 +131,73 @@ By default, the first output image/video uses `data` as the binary property name
 
 ## 🤖 AI Agent Integration
 
-Use ComfyUI as a tool in AI Agent workflows:
+Use ComfyUI as a tool in AI Agent workflows.
 
-1. Add an **AI Agent** node (e.g., OpenAI Conversational Agent)
-2. In the **Tools** section, add **ComfyUI**
-3. Configure the ComfyUI node parameters
-4. Start chatting!
+### Quick Setup
 
-**Example:**
+**Step 1: Create AI Agent**
+1. Add **OpenAI Conversational Agent** node
+2. Configure Chat Model (GPT-4/GPT-3.5)
+3. Add Memory (optional but recommended)
+
+**Step 2: Add ComfyUI Tool**
+1. Click AI Agent node
+2. In **Tools** section, click **+ Add Tool**
+3. Search and select **ComfyUI**
+4. Configure:
+   - **ComfyUI URL**: `http://127.0.0.1:8188`
+   - **Workflow JSON**: Your ComfyUI workflow (API format)
+   - **Node Parameters**: Configure text parameter override
+
+**Step 3: Start Chatting**
+Execute workflow and start conversing!
+
+### Example Conversations
+
+**Basic Image Generation:**
+
+**User:**
 ```
-User: Generate a cute cat picture
-
-AI: I'll generate that for you using ComfyUI.
-    [Calls ComfyUI tool]
-    Done! Here's your cute cat picture.
+Generate a picture of a cute cat sitting on a fence
 ```
+
+**AI:**
+```
+I'll generate that for you.
+[Executes ComfyUI with prompt: "a cute cat sitting on a fence"]
+Done! Here's the image.
+```
+
+**With Parameters:**
+
+**User:**
+```
+Create a cyberpunk city, size:1024x768, steps:30
+```
+
+**Supported Parameters:**
+- `size:WIDTHxHEIGHT` - Image dimensions
+- `steps:N` - Sampling steps
+- `cfg:N` - CFG strength
+- `seed:N` - Random seed
+- `negative:TEXT` - Negative prompt
+
+**Negative Prompts:**
+
+**User:**
+```
+Draw a beautiful sunset, negative: blurry, low quality
+```
+
+### Configuring Node Parameters for AI Agent
+
+In the ComfyUI node, configure parameter overrides:
+
+- **Node ID**: `6` (your CLIP text node)
+- **Parameter Mode**: Single Parameter
+- **Parameter Name**: `text`
+- **Type**: Text
+- **Value**: [Leave empty - AI Agent will fill this]
 
 ### Tool Mode Output Format
 
@@ -167,7 +219,70 @@ When used as an AI Agent tool, ComfyUI returns both binary data and URL informat
 
 This ensures compatibility with both workflow mode (binary data) and tool mode (URLs for AI Agent).
 
-For detailed AI Agent usage, see [AI-AGENT-USAGE.md](AI-AGENT-USAGE.md).
+### Best Practices
+
+**1. Clear Prompts**
+
+**Good:** "Generate a landscape painting of mountains at sunset"
+
+**Bad:** "Make a picture"
+
+**2. Use Specific Parameters**
+
+**Good:** "Create a portrait, size:512x768, steps:25"
+
+**Bad:** "Create a high-quality portrait"
+
+**3. Negative Prompts**
+
+Always use negative prompts for better quality:
+
+```
+A beautiful landscape, negative: blurry, distorted, low quality
+```
+
+### Advanced Usage
+
+**Style Transfer:**
+
+**User:**
+```
+Transform this image to oil painting style
+```
+
+Setup:
+- Upload input image as binary data
+- Configure style parameters
+
+**Multi-Modal Workflows:**
+
+Combine ComfyUI with other tools:
+
+**User:**
+```
+Generate an image of a futuristic city, then write a poem about it
+```
+
+AI Agent:
+1. Calls ComfyUI to generate image
+2. Calls Chat Model to write poem
+3. Returns both results
+
+### Troubleshooting
+
+**AI Agent Doesn't Call ComfyUI**
+
+**Check:**
+1. ComfyUI tool added to Tools list?
+2. Workflow JSON configured?
+3. ComfyUI server running?
+
+**Images Don't Match Prompts**
+
+**Check:**
+1. Correct node ID (e.g., `6` for CLIP text)
+2. Parameter name matches workflow (`text`)
+3. Workflow uses dynamic text input
 
 ## 🔧 Configuration Reference
 
