@@ -54,7 +54,7 @@ export interface NodeParameterConfig {
     value?: string;
     numberValue?: number;
     booleanValue?: string | boolean;
-    binaryPropertyName?: string;
+    binaryValue?: string;
     type?: 'text' | 'number' | 'boolean' | 'binary';
 }
 export interface NodeParameterInput {
