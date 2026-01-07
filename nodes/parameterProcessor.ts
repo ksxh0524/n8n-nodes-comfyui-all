@@ -88,7 +88,7 @@ export class ParameterProcessor {
 
       this.logger.info(`Successfully downloaded image`, { size: imageBuffer.length, url: imageUrl });
       
-      let filename = generateUniqueFilename('png', 'download');
+      const filename = generateUniqueFilename('png', 'download');
       
       this.logger.info(`Uploading image to ComfyUI`, { filename, size: imageBuffer.length });
       const uploadedFilename = await uploadImage(imageBuffer, filename);
