@@ -1,0 +1,369 @@
+import { randomUUID } from 'crypto';
+import { VALIDATION } from './constants';
+import { IExecuteFunctions } from 'n8n-workflow';
+
+export interface ComfyUIClientConfig {
+  baseUrl: string;
+  clientId?: string;
+  timeout?: number;
+  maxRetries?: number;
+  retryDelay?: number;
+  helpers: IExecuteFunctions['helpers'];
+}
+
+export interface WorkflowNode {
+  inputs?: Record<string, unknown>;
+  class_type: string;
+}
+
+export interface WorkflowExecution {
+  prompt: Record<string, WorkflowNode>;
+  client_id?: string;
+}
+
+export interface WorkflowResult {
+  success: boolean;
+  images?: string[];
+  videos?: string[];
+  output?: Record<string, unknown>;
+  error?: string;
+}
+
+export class ComfyUIClient {
+  private helpers: IExecuteFunctions['helpers'];
+  private baseUrl: string;
+  private timeout: number;
+  private clientId: string;
+  private maxRetries: number;
+  private retryDelay: number;
+  private isDestroyed: boolean = false;
+
+  constructor(config: ComfyUIClientConfig) {
+    this.helpers = config.helpers;
+    this.baseUrl = config.baseUrl;
+    this.timeout = config.timeout || VALIDATION.REQUEST_TIMEOUT_MS;
+    this.clientId = config.clientId || this.generateClientId();
+    this.maxRetries = config.maxRetries ?? VALIDATION.MAX_RETRIES;
+    this.retryDelay = config.retryDelay ?? VALIDATION.RETRY_DELAY_MS;
+  }
+
+  /**
+   * Cancel any ongoing request and clean up resources
+   */
+  cancelRequest(): void {
+    this.isDestroyed = true;
+  }
+
+  /**
+   * Clean up resources when the client is no longer needed
+   */
+  destroy(): void {
+    this.cancelRequest();
+  }
+
+  /**
+   * Check if the client has been destroyed
+   */
+  isClientDestroyed(): boolean {
+    return this.isDestroyed;
+  }
+
+  private generateClientId(): string {
+    return `client_${randomUUID()}`;
+  }
+
+  private async sleep(ms: number): Promise<void> {
+    return new Promise((resolve) => {
+      const now = Date.now();
+      const checkTime = () => {
+        if (Date.now() - now >= ms) {
+          resolve();
+        } else {
+          setImmediate(checkTime);
+        }
+      };
+      checkTime();
+    });
+  }
+
+  private async retryRequest<T>(
+    requestFn: () => Promise<T>,
+    retries: number = this.maxRetries,
+    delay: number = this.retryDelay,
+  ): Promise<T> {
+    let lastError: any;
+
+    for (let attempt = 0; attempt <= retries; attempt++) {
+      try {
+        if (this.isDestroyed) {
+          throw new Error('Client has been destroyed');
+        }
+
+        return await requestFn();
+      } catch (error: any) {
+        lastError = error;
+
+        if (attempt < retries) {
+          const backoffDelay = delay * Math.pow(2, attempt);
+          await this.sleep(backoffDelay);
+        }
+      }
+    }
+
+    throw lastError;
+  }
+
+  async executeWorkflow(workflow: Record<string, WorkflowNode>): Promise<WorkflowResult> {
+    try {
+      if (this.isDestroyed) {
+        return {
+          success: false,
+          error: 'Client has been destroyed',
+        };
+      }
+
+      const prompt = this.preparePrompt(workflow);
+
+      const response = await this.retryRequest(() =>
+        this.helpers.httpRequest({
+          method: 'POST',
+          url: `${this.baseUrl}/prompt`,
+          json: true,
+          body: {
+            prompt,
+            client_id: this.clientId,
+          },
+          timeout: this.timeout,
+        }),
+      );
+
+      if (response.prompt_id) {
+        return await this.waitForExecution(response.prompt_id);
+      }
+
+      return {
+        success: false,
+        error: 'Failed to execute workflow: No prompt_id returned',
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        error: this.formatErrorMessage(error, 'Failed to execute workflow'),
+      };
+    }
+  }
+
+  private preparePrompt(workflow: Record<string, WorkflowNode>): Record<string, WorkflowNode> {
+    const prompt: Record<string, WorkflowNode> = {};
+
+    for (const nodeId in workflow) {
+      const node = workflow[nodeId];
+      prompt[nodeId] = {
+        inputs: node.inputs || {},
+        class_type: node.class_type,
+      };
+    }
+
+    return prompt;
+  }
+
+  private async waitForExecution(promptId: string, maxWaitTime: number = VALIDATION.MAX_WAIT_TIME_MS): Promise<WorkflowResult> {
+    const startTime = Date.now();
+    let lastStatus = 'pending';
+    let consecutiveErrors = 0;
+    const maxConsecutiveErrors = 5;
+    const pollInterval = VALIDATION.POLL_INTERVAL_MS;
+
+    while (Date.now() - startTime < maxWaitTime) {
+      try {
+        if (this.isDestroyed) {
+          return {
+            success: false,
+            error: 'Client has been destroyed',
+          };
+        }
+
+        const response = await this.helpers.httpRequest({
+          method: 'GET',
+          url: `${this.baseUrl}/history/${promptId}`,
+          json: true,
+          timeout: this.timeout,
+        });
+
+        if (response[promptId]) {
+          const status = response[promptId].status;
+
+          if (status.completed) {
+            return this.extractResults(response[promptId].outputs);
+          }
+
+          if (lastStatus !== status.status_str) {
+            lastStatus = status.status_str;
+          }
+        }
+
+        // Reset error counter on successful request
+        consecutiveErrors = 0;
+        await this.sleep(pollInterval);
+      } catch (error: any) {
+        consecutiveErrors++;
+
+        if (consecutiveErrors >= maxConsecutiveErrors) {
+          return {
+            success: false,
+            error: `Workflow execution failed after ${maxConsecutiveErrors} consecutive errors: ${error.message}`,
+          };
+        }
+
+        await this.sleep(pollInterval);
+      }
+    }
+
+    return {
+      success: false,
+      error: 'Workflow execution timeout',
+    };
+  }
+
+  private extractResults(outputs: any): WorkflowResult {
+    const result: WorkflowResult = {
+      success: true,
+      images: [],
+      videos: [],
+      output: outputs,
+    };
+
+    for (const nodeId in outputs) {
+      const nodeOutput = outputs[nodeId];
+
+      // Process images
+      if (nodeOutput.images && Array.isArray(nodeOutput.images)) {
+        for (const image of nodeOutput.images) {
+          const imageUrl = `/view?filename=${image.filename}&subfolder=${image.subfolder || ''}&type=${image.type}`;
+          result.images!.push(imageUrl);
+        }
+      }
+
+      // Process videos (videos array)
+      if (nodeOutput.videos && Array.isArray(nodeOutput.videos)) {
+        for (const video of nodeOutput.videos) {
+          const videoUrl = `/view?filename=${video.filename}&subfolder=${video.subfolder || ''}&type=${video.type}`;
+          result.videos!.push(videoUrl);
+        }
+      }
+
+      // Process videos (gifs array) - some nodes use this name
+      if (nodeOutput.gifs && Array.isArray(nodeOutput.gifs)) {
+        for (const video of nodeOutput.gifs) {
+          const videoUrl = `/view?filename=${video.filename}&subfolder=${video.subfolder || ''}&type=${video.type}`;
+          result.videos!.push(videoUrl);
+        }
+      }
+    }
+
+    return result;
+  }
+
+  async getHistory(limit: number = 100): Promise<Record<string, unknown>> {
+    if (this.isDestroyed) {
+      throw new Error('Client has been destroyed');
+    }
+
+    const response = await this.retryRequest(() =>
+      this.helpers.httpRequest({
+        method: 'GET',
+        url: `${this.baseUrl}/history`,
+        qs: { limit },
+        json: true,
+        timeout: this.timeout,
+      }),
+    );
+    return response;
+  }
+
+  async uploadImage(imageData: Buffer, filename: string, overwrite: boolean = false): Promise<string> {
+    if (this.isDestroyed) {
+      throw new Error('Client has been destroyed');
+    }
+
+    const response = await this.retryRequest(() =>
+      this.helpers.httpRequest({
+        method: 'POST',
+        url: `${this.baseUrl}/upload/image`,
+        body: {
+          image: imageData,
+          filename: filename,
+          overwrite: overwrite,
+        },
+        json: true,
+        timeout: this.timeout,
+      } as any),
+    );
+
+    return response.name;
+  }
+
+  async getSystemInfo(): Promise<Record<string, unknown>> {
+    if (this.isDestroyed) {
+      throw new Error('Client has been destroyed');
+    }
+
+    const response = await this.retryRequest(() =>
+      this.helpers.httpRequest({
+        method: 'GET',
+        url: `${this.baseUrl}/system_stats`,
+        json: true,
+        timeout: this.timeout,
+      }),
+    );
+    return response;
+  }
+
+  async getImageBuffer(imagePath: string): Promise<Buffer> {
+    try {
+      if (this.isDestroyed) {
+        throw new Error('Client has been destroyed');
+      }
+
+      const response = await this.helpers.httpRequest({
+        method: 'GET',
+        url: `${this.baseUrl}${imagePath}`,
+        encoding: 'arraybuffer',
+        timeout: this.timeout,
+      });
+      return Buffer.from(response);
+    } catch (error: any) {
+      throw new Error(`Failed to get image buffer: ${this.formatErrorMessage(error)}`);
+    }
+  }
+
+  async getVideoBuffer(videoPath: string): Promise<Buffer> {
+    try {
+      if (this.isDestroyed) {
+        throw new Error('Client has been destroyed');
+      }
+
+      const response = await this.helpers.httpRequest({
+        method: 'GET',
+        url: `${this.baseUrl}${videoPath}`,
+        encoding: 'arraybuffer',
+        timeout: this.timeout,
+      });
+      return Buffer.from(response);
+    } catch (error: any) {
+      throw new Error(`Failed to get video buffer: ${this.formatErrorMessage(error)}`);
+    }
+  }
+
+  /**
+   * Format error message with additional context
+   */
+  private formatErrorMessage(error: any, context: string = ''): string {
+    if (error.response) {
+      return `${context}: ${error.response.statusCode} ${error.response.statusMessage}`;
+    } else if (error.request) {
+      return `${context}: No response from server`;
+    }
+    return context ? `${context}: ${error.message}` : error.message;
+  }
+}

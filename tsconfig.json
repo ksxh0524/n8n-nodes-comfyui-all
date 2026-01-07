@@ -1,0 +1,45 @@
+{
+  "compilerOptions": {
+    "module": "commonjs",
+    "target": "es2020",
+    "lib": ["es2020"],
+    "outDir": "./dist",
+    "rootDir": "./",
+    "sourceMap": true,
+    "declaration": true,
+    "declarationMap": true,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "moduleResolution": "node",
+    "skipLibCheck": true,
+    "strict": true,
+    "noImplicitAny": true,
+    "strictNullChecks": true,
+    "strictFunctionTypes": true,
+    "strictBindCallApply": true,
+    "strictPropertyInitialization": true,
+    "noImplicitThis": true,
+    "alwaysStrict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true
+  },
+  "include": [
+    "nodes/ComfyUi/**/*.ts",
+    "nodes/ComfyUiClient.ts",
+    "nodes/types.ts",
+    "nodes/constants.ts",
+    "nodes/workflow-builder.ts",
+    "nodes/workflow-parser.ts",
+    "nodes/validation.ts",
+    "nodes/logger.ts",
+    "index.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "nodes/ComfyUiTool",
+    "nodes/__tests__"
+  ]
+}
