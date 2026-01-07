@@ -59,7 +59,6 @@ Or via n8n interface: **Settings** → **Community Nodes** → **Install** → `
 ### Basic Example: Text to Image
 
 **Node Configuration:**
-- **Action**: `TextToAny`
 - **ComfyUI URL**: `http://127.0.0.1:8188`
 - **Workflow JSON**: Your ComfyUI workflow in API format
 
@@ -175,7 +174,6 @@ For detailed AI Agent usage, see [AI-AGENT-USAGE.md](AI-AGENT-USAGE.md).
 | Field | Description |
 |-------|-------------|
 | **ComfyUI URL** | URL of your ComfyUI server |
-| **Action** | TextToAny or ImagesToAny |
 | **Workflow JSON** | ComfyUI workflow in API format |
 | **Timeout** | Maximum wait time in seconds (default: 300) |
 | **Output Binary Key** | Property name for first output binary data (default: `data`) |

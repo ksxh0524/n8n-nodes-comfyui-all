@@ -34,25 +34,6 @@ class ComfyUi {
                     description: 'URL of ComfyUI server',
                 },
                 {
-                    displayName: 'Action',
-                    name: 'action',
-                    type: 'options',
-                    required: true,
-                    default: 'textToAny',
-                    options: [
-                        {
-                            name: 'TextToAny',
-                            value: 'textToAny',
-                            action: 'Generate images videos and more from text',
-                        },
-                        {
-                            name: 'ImagesToAny',
-                            value: 'imagesToAny',
-                            action: 'Generate images videos and more from images',
-                        },
-                    ],
-                },
-                {
                     displayName: 'Workflow JSON',
                     name: 'workflowJson',
                     type: 'string',
@@ -64,11 +45,6 @@ class ComfyUi {
                     description: 'Paste your ComfyUI workflow JSON (API Format). In ComfyUI: 1. Design your workflow 2. Click "Save (API Format)" to export 3. Copy generated JSON 4. Paste it here. Tip: Configure all parameters directly in JSON (prompts, resolution, sampling parameters, frames, etc.).',
                     placeholder: 'Paste your ComfyUI workflow JSON...\n\n{\n  "3": {\n    "inputs": {\n      "seed": 123456789,\n      "steps": 20,\n      ...\n    },\n    "class_type": "KSampler"\n  }\n}',
                     hint: 'Copy API Format workflow from ComfyUI and paste it here. You can edit all parameters directly in JSON.',
-                    displayOptions: {
-                        show: {
-                            action: ['textToAny', 'imagesToAny'],
-                        },
-                    },
                 },
                 {
                     displayName: 'Timeout (Seconds)',
@@ -96,11 +72,6 @@ class ComfyUi {
                         sortable: true,
                     },
                     description: 'Override parameters for a node. Click the arrow icon (▼) on each parameter item to collapse/expand it.',
-                    displayOptions: {
-                        show: {
-                            action: ['textToAny', 'imagesToAny'],
-                        },
-                    },
                     default: {},
                     options: [
                         {
@@ -319,16 +290,9 @@ class ComfyUi {
         const comfyUiUrl = this.getNodeParameter('comfyUiUrl', 0);
         const workflowJson = this.getNodeParameter('workflowJson', 0);
         const timeout = this.getNodeParameter('timeout', 0);
-        const action = this.getNodeParameter('action', 0);
         const outputBinaryKey = this.getNodeParameter('outputBinaryKey', 0) || 'data';
         if (!(0, validation_1.validateUrl)(comfyUiUrl)) {
             throw new n8n_workflow_1.NodeOperationError(this.getNode(), 'Invalid ComfyUI URL. Must be a valid HTTP/HTTPS URL.');
-        }
-        if (action === 'imagesToAny') {
-            const inputData = this.getInputData(0);
-            if (!inputData || !inputData[0] || !inputData[0].binary || Object.keys(inputData[0].binary).length === 0) {
-                throw new n8n_workflow_1.NodeOperationError(this.getNode(), 'ImagesToAny action requires an image input. Please connect a node that outputs binary image data.');
-            }
         }
         const workflowValidation = (0, validation_1.validateComfyUIWorkflow)(workflowJson);
         if (!workflowValidation.valid) {
@@ -346,7 +310,7 @@ class ComfyUi {
             timeout: timeout * 1000,
             helpers: this.helpers,
         });
-        logger.info('Starting ComfyUI workflow execution', { url: comfyUiUrl, timeout, action });
+        logger.info('Starting ComfyUI workflow execution', { url: comfyUiUrl, timeout });
         try {
             const nodeParametersInput = this.getNodeParameter('nodeParameters', 0);
             if (nodeParametersInput && nodeParametersInput.nodeParameter && Array.isArray(nodeParametersInput.nodeParameter)) {

@@ -37,9 +37,7 @@ n8n-nodes-comfyui-all/
 │   ├── constants.ts             # Configuration constants
 │   ├── logger.ts                # Logging utilities
 │   ├── types.ts                 # TypeScript type definitions
-│   ├── validation.ts            # Input validation
-│   ├── workflow-builder.ts      # Workflow building utilities
-│   └── workflow-parser.ts       # Workflow parsing utilities
+│   └── validation.ts            # Input validation
 ├── dist/                        # Compiled JavaScript output
 ├── index.ts                     # Package entry point
 ├── package.json                 # Package configuration
@@ -199,28 +197,7 @@ case 'new-type':
   break;
 ```
 
-### 2. Add New Action
-
-```typescript
-{
-  displayName: 'Action',
-  name: 'action',
-  type: 'options',
-  options: [
-    {
-      name: 'TextToAny',
-      value: 'textToAny',
-    },
-    {
-      name: 'NewAction',
-      value: 'newAction',
-      action: 'Description of new action',
-    },
-  ],
-}
-```
-
-### 3. Extend Client Functionality
+### 2. Extend Client Functionality
 
 Edit `ComfyUiClient.ts`:
 

@@ -17,7 +17,6 @@ Complete guide for using ComfyUI node as a tool in AI Agent workflows.
 3. Search and select **ComfyUI**
 4. Configure:
    - **ComfyUI URL**: `http://127.0.0.1:8188`
-   - **Action**: TextToAny
    - **Workflow JSON**: Your ComfyUI workflow (API format)
    - **Node Parameters**: Configure text parameter override
 
@@ -104,7 +103,6 @@ Transform this image to oil painting style
 ```
 
 Setup:
-- Use **ImagesToAny** action
 - Upload input image as binary data
 - Configure style parameters
 
