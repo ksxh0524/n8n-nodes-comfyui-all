@@ -197,17 +197,32 @@ class ComfyUIClient {
         if (this.isDestroyed) {
             throw new Error('Client has been destroyed');
         }
-        const FormData = require('form-data');
-        const form = new FormData();
-        form.append('image', imageData);
-        form.append('filename', filename);
-        form.append('overwrite', String(overwrite));
+        // Detect content type from filename
+        const ext = filename.split('.').pop()?.toLowerCase() || 'png';
+        const contentTypes = {
+            'png': 'image/png',
+            'jpg': 'image/jpeg',
+            'jpeg': 'image/jpeg',
+            'webp': 'image/webp',
+            'gif': 'image/gif',
+            'bmp': 'image/bmp',
+        };
+        const contentType = contentTypes[ext] || 'image/png';
+        // Use n8n's built-in multipart/form-data support
         const response = await this.retryRequest(() => this.helpers.httpRequest({
             method: 'POST',
             url: `${this.baseUrl}/upload/image`,
-            body: form,
-            headers: {
-                ...form.getHeaders(),
+            multipart: true,
+            formData: {
+                image: {
+                    value: imageData,
+                    options: {
+                        filename: filename,
+                        contentType: contentType,
+                    },
+                },
+                filename: filename,
+                overwrite: overwrite ? 'true' : 'false',
             },
             timeout: this.timeout,
         }));
