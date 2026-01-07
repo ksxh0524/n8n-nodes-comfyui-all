@@ -244,11 +244,11 @@ class ComfyUi {
                                     },
                                 },
                                 {
-                                    displayName: 'Binary Property',
-                                    name: 'binaryPropertyName',
+                                    displayName: 'Value',
+                                    name: 'binaryValue',
                                     type: 'string',
                                     default: 'data',
-                                    description: 'Binary property name to use as input (default: data). This specifies which binary data from previous nodes to upload to ComfyUI.',
+                                    description: 'Binary property name from input data (e.g., "data", "image", "file").',
                                     placeholder: 'data',
                                     displayOptions: {
                                         show: {
@@ -256,7 +256,7 @@ class ComfyUi {
                                             type: ['binary'],
                                         },
                                     },
-                                    hint: 'Enter the binary property name from input data (e.g., "data", "image", "file").',
+                                    hint: 'Enter the binary property name to use as input. Default is "data".',
                                 },
                             ],
                         },
@@ -311,7 +311,7 @@ class ComfyUi {
                     const value = nodeParamConfig.value;
                     const numberValue = nodeParamConfig.numberValue;
                     const booleanValue = nodeParamConfig.booleanValue;
-                    const binaryPropertyName = nodeParamConfig.binaryPropertyName || 'data';
+                    const binaryValue = nodeParamConfig.binaryValue || 'data';
                     if (!nodeId) {
                         throw new n8n_workflow_1.NodeOperationError(this.getNode(), `Node Parameters ${i + 1} is missing Node ID.`);
                     }
@@ -358,10 +358,10 @@ class ComfyUi {
                             case 'binary':
                                 // Get input binary data
                                 const inputData = this.getInputData(0);
-                                if (!inputData || !inputData[0] || !inputData[0].binary || !inputData[0].binary[binaryPropertyName]) {
-                                    throw new n8n_workflow_1.NodeOperationError(this.getNode(), `Node Parameters ${i + 1}: Binary property "${binaryPropertyName}" not found in input data. Please ensure the input contains binary data.`);
+                                if (!inputData || !inputData[0] || !inputData[0].binary || !inputData[0].binary[binaryValue]) {
+                                    throw new n8n_workflow_1.NodeOperationError(this.getNode(), `Node Parameters ${i + 1}: Binary property "${binaryValue}" not found in input data. Please ensure the input contains binary data.`);
                                 }
-                                const binaryData = inputData[0].binary[binaryPropertyName];
+                                const binaryData = inputData[0].binary[binaryValue];
                                 const buffer = Buffer.from(binaryData.data, 'base64');
                                 const filename = binaryData.fileName || `upload_${Date.now()}.${binaryData.mimeType.split('/')[1] || 'png'}`;
                                 // Upload to ComfyUI and get the filename
