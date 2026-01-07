@@ -202,18 +202,18 @@ class ComfyUi {
                                     displayName: 'Image Input Type',
                                     name: 'imageSource',
                                     type: 'options',
-                                    default: 'binary',
+                                    default: 'url',
                                     description: 'How to input the image',
                                     options: [
-                                        {
-                                            name: 'Binary',
-                                            value: 'binary',
-                                            description: 'Use binary data from input',
-                                        },
                                         {
                                             name: 'URL',
                                             value: 'url',
                                             description: 'Download from URL',
+                                        },
+                                        {
+                                            name: 'Binary',
+                                            value: 'binary',
+                                            description: 'Use binary data from input',
                                         },
                                     ],
                                     displayOptions: {
@@ -432,10 +432,11 @@ class ComfyUi {
                                             if (!filename) {
                                                 throw new n8n_workflow_1.NodeOperationError(this.getNode(), `Node Parameters ${i + 1}: Could not extract filename from ComfyUI URL "${imageUrl}". The URL must contain a "filename" parameter.`);
                                             }
-                                            // ComfyUI LoadImage node expects image parameter as array: [filename, subfolder, type]
-                                            parsedValue = [filename, subfolder, type];
+                                            // ComfyUI LoadImage node expects just the filename as string
+                                            // The subfolder and type info is already encoded in ComfyUI's storage system
+                                            parsedValue = filename;
                                             workflow[nodeId].inputs[paramName] = parsedValue;
-                                            logger.info(`Successfully extracted ComfyUI filename`, { paramName, imageValue: parsedValue, nodeId });
+                                            logger.info(`Successfully extracted ComfyUI filename`, { paramName, filename, nodeId });
                                         }
                                         catch (error) {
                                             logger.error(`Failed to parse ComfyUI URL`, { url: imageUrl, error: error.message });
