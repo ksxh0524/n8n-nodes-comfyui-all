@@ -13,6 +13,24 @@
 // 默认配置
 const DEFAULT_COMFYUI_URL = 'http://127.0.0.1:8188';
 
+// 参数默认值
+const DEFAULT_NEGATIVE_PROMPT = 'ugly, blurry, low quality, distorted';
+const DEFAULT_WIDTH = 512;
+const DEFAULT_HEIGHT = 512;
+const DEFAULT_STEPS = 20;
+const DEFAULT_CFG = 8;
+
+// 随机种子最大值（32位有符号整数最大值）
+const MAX_SEED_VALUE = 2147483647;
+
+// 轮询配置
+const POLLING_MAX_ATTEMPTS = 120; // 最多等待 2 分钟（120 秒）
+const POLLING_INTERVAL_MS = 1000; // 轮询间隔 1 秒
+
+// 请求超时配置
+const QUEUE_REQUEST_TIMEOUT = 30000; // 队列请求超时 30 秒
+const HISTORY_REQUEST_TIMEOUT = 10000; // 历史记录请求超时 10 秒
+
 // 参数提取规则配置
 const PARAM_PATTERNS = {
   negative: {
@@ -133,12 +151,12 @@ function extractParameter(query, pattern) {
 function parseInput(query) {
   const params = {
     prompt: '',
-    negative_prompt: 'ugly, blurry, low quality, distorted',
-    width: 512,
-    height: 512,
-    steps: 20,
-    cfg: 8,
-    seed: Math.floor(Math.random() * 2147483647)
+    negative_prompt: DEFAULT_NEGATIVE_PROMPT,
+    width: DEFAULT_WIDTH,
+    height: DEFAULT_HEIGHT,
+    steps: DEFAULT_STEPS,
+    cfg: DEFAULT_CFG,
+    seed: Math.floor(Math.random() * MAX_SEED_VALUE)
   };
 
   let currentQuery = query.trim();
@@ -315,7 +333,7 @@ async function executeComfyUIWorkflow(workflow, comfyUiUrl) {
     promptResponse = await axios.post(`${url}/prompt`, {
       prompt: workflow
     }, {
-      timeout: 30000 // 30秒超时
+      timeout: QUEUE_REQUEST_TIMEOUT
     });
   } catch (error) {
     if (error.code === 'ECONNREFUSED') {
@@ -338,22 +356,21 @@ async function executeComfyUIWorkflow(workflow, comfyUiUrl) {
 
   // 2. 轮询结果
   let attempts = 0;
-  const maxAttempts = 120; // 最多等待 2 分钟
 
-  while (attempts < maxAttempts) {
-    await new Promise(resolve => setTimeout(resolve, 1000));
+  while (attempts < POLLING_MAX_ATTEMPTS) {
+    await new Promise(resolve => setTimeout(resolve, POLLING_INTERVAL_MS));
 
     // 检查历史记录
     let historyResponse;
     try {
       historyResponse = await axios.get(`${url}/history/${promptId}`, {
-        timeout: 10000 // 10秒超时
+        timeout: HISTORY_REQUEST_TIMEOUT
       });
     } catch (error) {
       if (error.code === 'ECONNREFUSED') {
         throw new Error(`Lost connection to ComfyUI server at ${url}.`);
       } else if (error.code === 'ETIMEDOUT' || error.code === 'ECONNABORTED') {
-        console.warn(`[ComfyUI Tool] Timeout checking history (attempt ${attempts + 1}/${maxAttempts})`);
+        console.warn(`[ComfyUI Tool] Timeout checking history (attempt ${attempts + 1}/${POLLING_MAX_ATTEMPTS})`);
         attempts++;
         continue;
       } else {
@@ -384,7 +401,7 @@ async function executeComfyUIWorkflow(workflow, comfyUiUrl) {
     attempts++;
   }
 
-  throw new Error(`Workflow execution timeout after ${maxAttempts} seconds (prompt_id: ${promptId}). The workflow may still be running on the ComfyUI server.`);
+  throw new Error(`Workflow execution timeout after ${POLLING_MAX_ATTEMPTS} seconds (prompt_id: ${promptId}). The workflow may still be running on ComfyUI server.`);
 }
 
 /**
