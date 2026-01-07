@@ -165,8 +165,12 @@ function parseInput(query) {
     .replace(/^\s*,\s*/g, '') // 移除开头的逗号
     .replace(/,\s*,\s*/g, ', ') // 移除逗号之间的多余空格
     .replace(/,\s*$/g, '') // 再次移除末尾的逗号（处理单个逗号情况）
+    .replace(/^[,\s]+/g, '') // 移除开头的所有逗号和空格
+    .replace(/[,\s]+$/g, '') // 移除末尾的所有逗号和空格
+    .replace(/,\s*$/g, '') // 第四次移除末尾的逗号（确保完全移除）
+    .replace(/^[,\s]+/g, '') // 再次移除开头的所有逗号和空格
+    .replace(/[,\s]+$/g, '') // 再次移除末尾的所有逗号和空格
     .trim();
-
   params.prompt = currentQuery;
 
   return params;
