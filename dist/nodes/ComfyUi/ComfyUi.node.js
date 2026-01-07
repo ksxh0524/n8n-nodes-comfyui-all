@@ -426,16 +426,16 @@ class ComfyUi {
                                         try {
                                             const urlObj = new URL(imageUrl);
                                             const filename = urlObj.searchParams.get('filename');
-                                            const subfolder = urlObj.searchParams.get('subfolder');
-                                            const type = urlObj.searchParams.get('type');
+                                            const subfolder = urlObj.searchParams.get('subfolder') || '';
+                                            const type = urlObj.searchParams.get('type') || 'input';
                                             logger.info(`ComfyUI URL parsed`, { filename, subfolder, type, paramName });
                                             if (!filename) {
                                                 throw new n8n_workflow_1.NodeOperationError(this.getNode(), `Node Parameters ${i + 1}: Could not extract filename from ComfyUI URL "${imageUrl}". The URL must contain a "filename" parameter.`);
                                             }
-                                            // Use the filename directly
-                                            parsedValue = filename;
+                                            // ComfyUI LoadImage node expects image parameter as array: [filename, subfolder, type]
+                                            parsedValue = [filename, subfolder, type];
                                             workflow[nodeId].inputs[paramName] = parsedValue;
-                                            logger.info(`Successfully extracted ComfyUI filename`, { paramName, filename, nodeId });
+                                            logger.info(`Successfully extracted ComfyUI filename`, { paramName, imageValue: parsedValue, nodeId });
                                         }
                                         catch (error) {
                                             logger.error(`Failed to parse ComfyUI URL`, { url: imageUrl, error: error.message });
@@ -515,7 +515,11 @@ class ComfyUi {
                                     const binaryPropertyName = value || 'data';
                                     if (!inputData || !inputData[0] || !inputData[0].binary || !inputData[0].binary[binaryPropertyName]) {
                                         const availableKeys = inputData && inputData[0] && inputData[0].binary ? Object.keys(inputData[0].binary).join(', ') : 'none';
-                                        throw new n8n_workflow_1.NodeOperationError(this.getNode(), `Node Parameters ${i + 1}: Binary property "${binaryPropertyName}" not found in input data. Available binary properties: ${availableKeys}. Please check the input node configuration.`);
+                                        throw new n8n_workflow_1.NodeOperationError(this.getNode(), `Node Parameters ${i + 1}: Binary property "${binaryPropertyName}" not found in input data.
+
+Available binary properties: ${availableKeys}
+
+TIP: Check the previous node's "Output Binary Key" parameter. It should match "${binaryPropertyName}".`);
                                     }
                                     const binaryData = inputData[0].binary[binaryPropertyName];
                                     // Validate binary data
