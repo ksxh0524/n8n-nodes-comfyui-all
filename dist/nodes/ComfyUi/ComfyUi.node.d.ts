@@ -87,6 +87,20 @@ export declare class ComfyUi {
             displayName: string;
             name: string;
             type: string;
+            default: string;
+            description: string;
+            placeholder: string;
+            required?: undefined;
+            options?: undefined;
+            typeOptions?: undefined;
+            hint?: undefined;
+            displayOptions?: undefined;
+            minValue?: undefined;
+            maxValue?: undefined;
+        } | {
+            displayName: string;
+            name: string;
+            type: string;
             typeOptions: {
                 multipleValues: boolean;
                 sortable: boolean;
@@ -108,12 +122,52 @@ export declare class ComfyUi {
                     type: string;
                     default: string;
                     description: string;
+                    options: {
+                        name: string;
+                        value: string;
+                        description: string;
+                    }[];
+                    displayOptions: {
+                        show: {
+                            parameterMode: string[];
+                            type: string[];
+                            imageSource?: undefined;
+                        };
+                    };
+                    placeholder?: undefined;
+                    hint?: undefined;
+                    required?: undefined;
+                    typeOptions?: undefined;
+                } | {
+                    displayName: string;
+                    name: string;
+                    type: string;
+                    default: string;
+                    description: string;
+                    placeholder: string;
+                    displayOptions: {
+                        show: {
+                            parameterMode: string[];
+                            type: string[];
+                            imageSource: string[];
+                        };
+                    };
+                    hint: string;
+                    options?: undefined;
+                    required?: undefined;
+                    typeOptions?: undefined;
+                } | {
+                    displayName: string;
+                    name: string;
+                    type: string;
+                    default: string;
+                    description: string;
                     placeholder: string;
                     required: boolean;
                     options?: undefined;
                     displayOptions?: undefined;
-                    typeOptions?: undefined;
                     hint?: undefined;
+                    typeOptions?: undefined;
                 } | {
                     displayName: string;
                     name: string;
@@ -125,11 +179,11 @@ export declare class ComfyUi {
                         value: string;
                         description: string;
                     }[];
-                    placeholder?: undefined;
-                    required?: undefined;
                     displayOptions?: undefined;
-                    typeOptions?: undefined;
+                    placeholder?: undefined;
                     hint?: undefined;
+                    required?: undefined;
+                    typeOptions?: undefined;
                 } | {
                     displayName: string;
                     name: string;
@@ -141,12 +195,13 @@ export declare class ComfyUi {
                         show: {
                             parameterMode: string[];
                             type?: undefined;
+                            imageSource?: undefined;
                         };
                     };
-                    required?: undefined;
                     options?: undefined;
-                    typeOptions?: undefined;
                     hint?: undefined;
+                    required?: undefined;
+                    typeOptions?: undefined;
                 } | {
                     displayName: string;
                     name: string;
@@ -161,11 +216,12 @@ export declare class ComfyUi {
                         show: {
                             parameterMode: string[];
                             type?: undefined;
+                            imageSource?: undefined;
                         };
                     };
-                    required?: undefined;
                     options?: undefined;
                     hint?: undefined;
+                    required?: undefined;
                 } | {
                     displayName: string;
                     name: string;
@@ -181,12 +237,13 @@ export declare class ComfyUi {
                         show: {
                             parameterMode: string[];
                             type?: undefined;
+                            imageSource?: undefined;
                         };
                     };
                     placeholder?: undefined;
+                    hint?: undefined;
                     required?: undefined;
                     typeOptions?: undefined;
-                    hint?: undefined;
                 } | {
                     displayName: string;
                     name: string;
@@ -198,28 +255,12 @@ export declare class ComfyUi {
                         show: {
                             parameterMode: string[];
                             type: string[];
+                            imageSource?: undefined;
                         };
                     };
-                    required?: undefined;
                     options?: undefined;
-                    typeOptions?: undefined;
                     hint?: undefined;
-                } | {
-                    displayName: string;
-                    name: string;
-                    type: string;
-                    default: string;
-                    description: string;
-                    placeholder: string;
-                    displayOptions: {
-                        show: {
-                            parameterMode: string[];
-                            type: string[];
-                        };
-                    };
-                    hint: string;
                     required?: undefined;
-                    options?: undefined;
                     typeOptions?: undefined;
                 } | {
                     displayName: string;
@@ -232,33 +273,13 @@ export declare class ComfyUi {
                         show: {
                             parameterMode: string[];
                             type: string[];
+                            imageSource?: undefined;
                         };
                     };
-                    required?: undefined;
                     options?: undefined;
-                    typeOptions?: undefined;
                     hint?: undefined;
-                } | {
-                    displayName: string;
-                    name: string;
-                    type: string;
-                    default: string;
-                    description: string;
-                    options: {
-                        name: string;
-                        value: string;
-                        description: string;
-                    }[];
-                    displayOptions: {
-                        show: {
-                            parameterMode: string[];
-                            type: string[];
-                        };
-                    };
-                    placeholder?: undefined;
                     required?: undefined;
                     typeOptions?: undefined;
-                    hint?: undefined;
                 })[];
             }[];
             required?: undefined;

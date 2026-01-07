@@ -64,8 +64,9 @@ export interface NodeParameterConfig {
   value?: string;          // Single 模式：文本值
   numberValue?: number;    // Single 模式：数字值
   booleanValue?: string | boolean;  // Single 模式：布尔值
-  binaryValue?: string;    // Single 模式 Binary 类型：二进制属性名
-  type?: 'text' | 'number' | 'boolean' | 'binary'; // Single 模式的类型
+  imageSource?: 'binary' | 'url'; // Image 类型：数据来源
+  imageUrl?: string;       // Image 类型：图片 URL
+  type?: 'text' | 'number' | 'boolean' | 'image'; // Single 模式的类型
 }
 
 export interface NodeParameterInput {

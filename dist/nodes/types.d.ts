@@ -54,8 +54,9 @@ export interface NodeParameterConfig {
     value?: string;
     numberValue?: number;
     booleanValue?: string | boolean;
-    binaryValue?: string;
-    type?: 'text' | 'number' | 'boolean' | 'binary';
+    imageSource?: 'binary' | 'url';
+    imageUrl?: string;
+    type?: 'text' | 'number' | 'boolean' | 'image';
 }
 export interface NodeParameterInput {
     nodeParameter: NodeParameterConfig[];

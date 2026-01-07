@@ -11,6 +11,8 @@
 - 🎬 **Multi-Modal Support** - Supports images and videos for both input and output
 - 🤖 **AI Agent Ready** - Can be used as a tool in AI Agent workflows
 - 📊 **Flexible Configuration** - JSON mode or single parameter mode
+- 🔗 **URL Image Support** - Load images from URLs or binary data
+- 🏷️ **Customizable Output** - Customize binary output property names
 
 ## 📦 Installation
 
@@ -90,13 +92,43 @@ Configure one parameter at a time with type validation:
 - **Type**: `Number`
 - **Value**: `25`
 
-### Binary File Upload
+### Image Input Options
 
-To upload input images to ComfyUI:
+The node supports two methods for uploading images to ComfyUI:
 
-- **Type**: `Binary`
-- **Binary Property**: `data` (default)
-- The node will automatically upload the binary data and use the filename
+#### Method 1: Binary Data
+
+Upload images from n8n binary data:
+
+- **Type**: `Image`
+- **Image Source**: `Binary`
+- **Value**: Binary property name (e.g., `data`, `image`, `file`)
+
+#### Method 2: URL
+
+Download and upload images from a URL:
+
+- **Type**: `Image`
+- **Image Source**: `URL`
+- **Image URL**: Full URL of the image (e.g., `https://example.com/image.png`)
+
+The node will automatically download the image from the URL and upload it to ComfyUI.
+
+### Custom Output Binary Key
+
+By default, the first output image/video uses `data` as the binary property name. You can customize this:
+
+- **Output Binary Key**: Property name for the first output (e.g., `image`, `output`, `result`)
+- Default: `data`
+
+**Example:**
+```json
+{
+  "binary": {
+    "myImage": { "data": "...", "mimeType": "image/png" }
+  }
+}
+```
 
 ## 🤖 AI Agent Integration
 
@@ -146,7 +178,21 @@ For detailed AI Agent usage, see [AI-AGENT-USAGE.md](AI-AGENT-USAGE.md).
 | **Action** | TextToAny or ImagesToAny |
 | **Workflow JSON** | ComfyUI workflow in API format |
 | **Timeout** | Maximum wait time in seconds (default: 300) |
+| **Output Binary Key** | Property name for first output binary data (default: `data`) |
 | **Node Parameters** | Override workflow parameters |
+
+#### Node Parameter Fields
+
+| Field | Description |
+|-------|-------------|
+| **Node ID** | The node ID in your workflow (e.g., `6`, `13`) |
+| **Parameter Mode** | Single Parameter or Multiple Parameters (JSON) |
+| **Type** | Data type: Text, Number, Boolean, or Image |
+| **Image Source** | (When Type=Image) Binary or URL |
+| **Image URL** | (When Image Source=URL) URL to download image from |
+| **Parameter Name** | (Single mode) Parameter name to override |
+| **Parameters JSON** | (Multiple mode) JSON object with parameters |
+| **Value** | Value to set (varies by Type) |
 
 ## 💡 Tips
 
@@ -154,4 +200,5 @@ For detailed AI Agent usage, see [AI-AGENT-USAGE.md](AI-AGENT-USAGE.md).
 - **Parameter overrides**: Use Node Parameters instead of modifying workflow JSON
 - **Seed control**: Fixed seeds produce reproducible results
 - **Optimization**: 20-30 sampling steps are usually sufficient
-- **Binary data**: Use Binary type to upload input images
+- **Image input**: Use Image type with Binary source for n8n binary data, or URL source to download from web
+- **Output naming**: Customize Output Binary Key to match your workflow's expected property names
