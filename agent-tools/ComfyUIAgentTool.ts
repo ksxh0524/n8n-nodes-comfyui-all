@@ -167,9 +167,10 @@ function parseInput(query: string): ParsedParameters {
       if (pattern.paramKeys) {
         // Type guard: check if value is an object with keys
         if (typeof value === 'object' && value !== null) {
-          const valueKeys = Object.keys(value);
+          const valueRecord = value as Record<string, unknown>;
+          const valueKeys = Object.keys(valueRecord);
           pattern.paramKeys.forEach((key, index) => {
-            (params as Record<string, unknown>)[key] = value[valueKeys[index]];
+            (params as Record<string, unknown>)[key] = valueRecord[valueKeys[index]];
           });
         }
       } else if (pattern.paramKey) {
@@ -395,7 +396,7 @@ async function executeComfyUIWorkflow(workflow: Workflow, comfyUiUrl?: string): 
     }
 
     if (historyResponse.data && historyResponse.data[promptId]) {
-      const outputs = historyResponse.data[promptId].outputs;
+      const outputs = historyResponse.data[promptId].outputs as Record<string, unknown> | undefined;
 
       if (outputs) {
         const images = extractImagesFromOutputs(outputs, url);
