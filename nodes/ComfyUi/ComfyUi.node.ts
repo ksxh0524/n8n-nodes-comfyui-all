@@ -5,9 +5,9 @@ import {
 } from 'n8n-workflow';
 
 import { ComfyUIClient } from '../ComfyUiClient';
-import { validateUrl, validateComfyUIWorkflow, safeJsonParse } from '../validation';
+import { validateUrl, validateComfyUIWorkflow, safeJsonParse, validateOutputBinaryKey } from '../validation';
 import { NodeParameterInput, HttpError, Workflow } from '../types';
-import { IMAGE_MIME_TYPES, DEFAULT_OUTPUT_BINARY_KEY } from '../constants';
+import { IMAGE_MIME_TYPES } from '../constants';
 import { createLogger } from '../logger';
 import { validateFilename, generateUniqueFilename, getMaxImageSizeBytes, getMaxBase64Length, formatBytes } from '../utils';
 
@@ -31,6 +31,31 @@ export class ComfyUi {
     usableAsTool: true,
     inputs: ['main'],
     outputs: ['main'],
+    subtitle: 'ComfyUI Integration',
+    notes: [
+      'Requires a running ComfyUI server',
+      'Supports dynamic parameter overrides',
+      'Can be used as an AI Agent tool',
+    ],
+    inputSample: {
+      comfyUiUrl: 'http://127.0.0.1:8188',
+      workflowJson: '{"3":{"inputs":{"seed":0,"steps":20,"cfg":8,"sampler_name":"euler","scheduler":"normal","denoise":1,"model":["4",0],"positive":["6",0],"negative":["7",0],"latent_image":["5",0]},"class_type":"KSampler"},"4":{"inputs":{"ckpt_name":"v1-5-pruned-emaonly.ckpt"},"class_type":"CheckpointLoaderSimple"},"5":{"inputs":{"width":512,"height":512,"batch_size":1},"class_type":"EmptyLatentImage"},"6":{"inputs":{"text":"","clip":["4",1]},"class_type":"CLIPTextEncode"},"7":{"inputs":{"text":"ugly, blurry, low quality","clip":["4",1]},"class_type":"CLIPTextEncode"},"8":{"inputs":{"samples":["3",0],"vae":["4",2]},"class_type":"VAEDecode"},"9":{"inputs":{"filename_prefix":"ComfyUI","images":["8",0]},"class_type":"SaveImage"}}',
+      nodeParameters: [],
+    },
+    outputSample: {
+      json: {
+        success: true,
+        images: [],
+        imageUrls: [],
+      },
+      binary: {
+        data: {
+          data: 'base64_encoded_image_data',
+          mimeType: 'image/png',
+          fileName: 'ComfyUI_00001.png',
+        },
+      },
+    },
     properties: [
       {
         displayName: 'ComfyUI URL',
@@ -303,7 +328,7 @@ export class ComfyUi {
     const comfyUiUrl = this.getNodeParameter('comfyUiUrl', 0) as string;
     const workflowJson = this.getNodeParameter('workflowJson', 0) as string;
     const timeout = this.getNodeParameter('timeout', 0) as number;
-    const outputBinaryKey = this.getNodeParameter('outputBinaryKey', 0) as string || DEFAULT_OUTPUT_BINARY_KEY;
+    const outputBinaryKey = validateOutputBinaryKey(this.getNodeParameter('outputBinaryKey', 0) as string);
 
     if (!validateUrl(comfyUiUrl)) {
       throw new NodeOperationError(this.getNode(), 'Invalid ComfyUI URL. Must be a valid HTTP/HTTPS URL.');

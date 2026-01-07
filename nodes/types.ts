@@ -2,6 +2,8 @@
  * Type definitions for ComfyUI n8n nodes
  */
 
+import type { IDataObject } from 'n8n-workflow';
+
 export interface ValidationResult {
   valid: boolean;
   error?: string;
@@ -146,4 +148,36 @@ export interface NodeOutput {
  */
 export interface WorkflowOutputs {
   [nodeId: string]: NodeOutput;
+}
+
+/**
+ * Binary data structure for n8n output
+ */
+export interface BinaryData {
+  data: string;
+  mimeType: string;
+  fileName: string;
+  [key: string]: string; // Index signature for n8n compatibility
+}
+
+/**
+ * JSON data structure for n8n output
+ */
+export interface JsonData extends IDataObject {
+  success: true;
+  data?: Record<string, unknown>;
+  images?: string[];
+  imageUrls?: string[];
+  videos?: string[];
+  videoUrls?: string[];
+  imageCount?: number;
+  videoCount?: number;
+}
+
+/**
+ * Process output result from client
+ */
+export interface ProcessOutput {
+  json: JsonData;
+  binary: Record<string, BinaryData>;
 }

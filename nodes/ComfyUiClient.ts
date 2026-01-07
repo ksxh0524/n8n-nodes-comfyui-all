@@ -4,7 +4,7 @@ import { IExecuteFunctions } from 'n8n-workflow';
 import FormData from 'form-data';
 import { Logger } from './logger';
 import { extractFileInfo, validateMimeType, getMaxImageSizeBytes, formatBytes } from './utils';
-import { HttpError } from './types';
+import { HttpError, BinaryData, JsonData, ProcessOutput } from './types';
 
 /**
  * Client state enumeration for state machine pattern
@@ -340,7 +340,12 @@ export class ComfyUIClient {
 
   /**
    * Extract image and video results from workflow outputs
-   * @param outputs - Raw output data from ComfyUI
+   *
+   * Note: The `outputs` parameter uses `any` type because ComfyUI API responses
+   * have a dynamic structure that is not guaranteed. Different ComfyUI nodes
+   * may return different output formats, and we need to handle this flexibility.
+   *
+   * @param outputs - Raw output data from ComfyUI (format is not guaranteed, using any for flexibility)
    * @returns WorkflowResult with extracted images and videos
    */
   private extractResults(outputs: any): WorkflowResult {
@@ -481,6 +486,31 @@ export class ComfyUIClient {
   }
 
   /**
+   * Check if ComfyUI server is accessible
+   * @returns Promise containing health status
+   */
+  async healthCheck(): Promise<{ healthy: boolean; message: string }> {
+    try {
+      await this.helpers.httpRequest({
+        method: 'GET',
+        url: `${this.baseUrl}/system_stats`,
+        json: true,
+        timeout: 5000,
+      });
+
+      return {
+        healthy: true,
+        message: 'ComfyUI server is accessible',
+      };
+    } catch (error) {
+      return {
+        healthy: false,
+        message: `ComfyUI server is not accessible: ${error instanceof Error ? error.message : String(error)}`,
+      };
+    }
+  }
+
+  /**
    * Get buffer from ComfyUI server (internal method)
    * @param path - Path to the resource on ComfyUI server
    * @param resourceType - Type of resource ('image' or 'video')
@@ -579,11 +609,8 @@ export class ComfyUIClient {
    * @param outputBinaryKey - Property name for the first output binary data
    * @returns Processed result with json and binary data
    */
-  async processResults(result: WorkflowResult, outputBinaryKey: string = 'data'): Promise<{
-    json: Record<string, any>;
-    binary: Record<string, any>;
-  }> {
-    const jsonData: Record<string, any> = {
+  async processResults(result: WorkflowResult, outputBinaryKey: string = 'data'): Promise<ProcessOutput> {
+    const jsonData: JsonData = {
       success: true,
     };
 
@@ -601,55 +628,68 @@ export class ComfyUIClient {
       jsonData.videoUrls = result.videos.map(vid => `${this.baseUrl}${vid}`);
     }
 
-    const binaryData: Record<string, any> = {};
+    const binaryData: Record<string, BinaryData> = {};
+    const buffers: Buffer[] = [];
 
-    // Fetch and process images concurrently
-    if (result.images && result.images.length > 0) {
-      const imageBuffers = await this.getImageBuffers(result.images);
+    try {
+      // Fetch and process images concurrently
+      if (result.images && result.images.length > 0) {
+        const imageBuffers = await this.getImageBuffers(result.images);
+        buffers.push(...imageBuffers);
 
-      for (let i = 0; i < result.images.length; i++) {
-        const imagePath = result.images[i];
-        const imageBuffer = imageBuffers[i];
+        for (let i = 0; i < result.images.length; i++) {
+          const imagePath = result.images[i];
+          const imageBuffer = imageBuffers[i];
 
-        const fileInfo = extractFileInfo(imagePath, 'png');
-        const mimeType = validateMimeType(fileInfo.mimeType, IMAGE_MIME_TYPES);
+          const fileInfo = extractFileInfo(imagePath, 'png');
+          const mimeType = validateMimeType(fileInfo.mimeType, IMAGE_MIME_TYPES);
 
-        const binaryKey = i === 0 ? outputBinaryKey : `image_${i}`;
-        binaryData[binaryKey] = {
-          data: imageBuffer.toString('base64'),
-          mimeType: mimeType,
-          fileName: fileInfo.filename,
-        };
+          const binaryKey = i === 0 ? outputBinaryKey : `image_${i}`;
+          binaryData[binaryKey] = {
+            data: imageBuffer.toString('base64'),
+            mimeType: mimeType,
+            fileName: fileInfo.filename,
+          };
+        }
+
+        jsonData.imageCount = result.images.length;
       }
 
-      jsonData.imageCount = result.images.length;
-    }
+      // Fetch and process videos concurrently
+      if (result.videos && result.videos.length > 0) {
+        const videoBuffers = await this.getVideoBuffers(result.videos);
+        buffers.push(...videoBuffers);
 
-    // Fetch and process videos concurrently
-    if (result.videos && result.videos.length > 0) {
-      const videoBuffers = await this.getVideoBuffers(result.videos);
+        for (let i = 0; i < result.videos.length; i++) {
+          const videoPath = result.videos[i];
+          const videoBuffer = videoBuffers[i];
+          const fileInfo = extractFileInfo(videoPath, 'mp4');
+          const mimeType = validateMimeType(fileInfo.mimeType, VIDEO_MIME_TYPES);
 
-      for (let i = 0; i < result.videos.length; i++) {
-        const videoPath = result.videos[i];
-        const videoBuffer = videoBuffers[i];
-        const fileInfo = extractFileInfo(videoPath, 'mp4');
-        const mimeType = validateMimeType(fileInfo.mimeType, VIDEO_MIME_TYPES);
+          const hasImages = result.images && result.images.length > 0;
+          const binaryKey = (!hasImages && i === 0) ? outputBinaryKey : `video_${i}`;
+          binaryData[binaryKey] = {
+            data: videoBuffer.toString('base64'),
+            mimeType: mimeType,
+            fileName: fileInfo.filename,
+          };
+        }
 
-        const hasImages = result.images && result.images.length > 0;
-        const binaryKey = (!hasImages && i === 0) ? outputBinaryKey : `video_${i}`;
-        binaryData[binaryKey] = {
-          data: videoBuffer.toString('base64'),
-          mimeType: mimeType,
-          fileName: fileInfo.filename,
-        };
+        jsonData.videoCount = result.videos.length;
       }
 
-      jsonData.videoCount = result.videos.length;
+      return {
+        json: jsonData,
+        binary: binaryData,
+      };
+    } catch (error) {
+      // Clean up already fetched buffers to prevent memory leaks
+      buffers.forEach(buffer => {
+        if (buffer) {
+          buffer.fill(0); // Zero out sensitive data
+        }
+      });
+      throw error;
     }
-
-    return {
-      json: jsonData,
-      binary: binaryData,
-    };
   }
 }

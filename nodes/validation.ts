@@ -174,3 +174,43 @@ export function validateComfyUIWorkflow(workflowJson: string): ValidationResult 
 
   return { valid: true };
 }
+
+/**
+ * Validate output binary key parameter
+ * @param key - The output binary key to validate
+ * @returns Validated key or default if invalid
+ * @throws Error if key format is invalid
+ */
+export function validateOutputBinaryKey(key: string | undefined | null): string {
+  const DEFAULT_OUTPUT_BINARY_KEY = 'data';
+
+  // Return default if key is not provided
+  if (!key || typeof key !== 'string') {
+    return DEFAULT_OUTPUT_BINARY_KEY;
+  }
+
+  const trimmedKey = key.trim();
+
+  // Return default if key is empty after trimming
+  if (trimmedKey.length === 0) {
+    return DEFAULT_OUTPUT_BINARY_KEY;
+  }
+
+  // Only allow letters, numbers, underscores, and hyphens
+  const validPattern = /^[a-zA-Z0-9_-]+$/;
+  if (!validPattern.test(trimmedKey)) {
+    throw new Error(
+      'Output Binary Key can only contain letters, numbers, underscores, and hyphens'
+    );
+  }
+
+  // Limit length to prevent potential issues
+  const MAX_KEY_LENGTH = 100;
+  if (trimmedKey.length > MAX_KEY_LENGTH) {
+    throw new Error(
+      `Output Binary Key is too long (max ${MAX_KEY_LENGTH} characters, got ${trimmedKey.length})`
+    );
+  }
+
+  return trimmedKey;
+}
