@@ -53,7 +53,7 @@ export class ParameterProcessor {
 
     this.logger.info(`Downloading image from URL`, { url: imageUrl, paramName });
     try {
-      const { validateFilename, generateUniqueFilename, getMaxImageSizeBytes, formatBytes } = await import('./utils');
+      const { generateUniqueFilename, getMaxImageSizeBytes, formatBytes } = await import('./utils');
 
       const imageResponse = await this.executeFunctions.helpers.httpRequest({
         method: 'GET',
@@ -88,31 +88,7 @@ export class ParameterProcessor {
 
       this.logger.info(`Successfully downloaded image`, { size: imageBuffer.length, url: imageUrl });
       
-      let filename = imageUrl.split('/').pop() || generateUniqueFilename('png', 'download');
-      
-      // Extract filename from URL query parameters if present
-      if (filename.includes('?')) {
-        const urlParams = new URLSearchParams(filename.split('?')[1]);
-        const filenameParam = urlParams.get('filename');
-        if (filenameParam) {
-          filename = filenameParam;
-        } else {
-          filename = filename.split('?')[0];
-        }
-      }
-      
-      // Detect image format from URL or use default
-      if (!filename.match(/\.(png|jpg|jpeg|webp|gif|bmp)$/i)) {
-        filename = generateUniqueFilename('png', 'download');
-      } else {
-        try {
-          filename = validateFilename(filename);
-        } catch (error: unknown) {
-          const errorMsg = error instanceof Error ? error.message : String(error);
-          this.logger.warn(`Invalid filename "${filename}", generating unique filename`, { error: errorMsg });
-          filename = generateUniqueFilename('png', 'download');
-        }
-      }
+      let filename = generateUniqueFilename('png', 'download');
       
       this.logger.info(`Uploading image to ComfyUI`, { filename, size: imageBuffer.length });
       const uploadedFilename = await uploadImage(imageBuffer, filename);
