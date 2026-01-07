@@ -69,17 +69,22 @@ export const DEFAULT_WORKFLOW_TEMPLATE: Workflow = {
  * Get workflow template based on configuration
  * @param config - Workflow configuration
  * @returns Workflow template
- * @throws Error if custom template is invalid JSON
  */
 export function getWorkflowTemplate(config?: WorkflowConfig): Workflow {
   if (config?.customTemplate) {
     try {
       return safeJsonParse(config.customTemplate, 'Custom workflow template');
     } catch (error: unknown) {
-      // If custom template is invalid, fall back to default
-      // Error is already logged by safeJsonParse
+      // Log warning when custom template fails
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      console.warn(`Custom workflow template is invalid, falling back to default template. Error: ${errorMsg}`);
     }
   }
 
-  return config?.template || DEFAULT_WORKFLOW_TEMPLATE;
+  // Check if template is a valid non-empty object
+  if (config?.template && typeof config.template === 'object' && Object.keys(config.template).length > 0) {
+    return config.template;
+  }
+
+  return DEFAULT_WORKFLOW_TEMPLATE;
 }

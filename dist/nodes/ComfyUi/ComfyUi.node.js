@@ -352,7 +352,8 @@ class ComfyUi {
                             parameters = (0, validation_1.safeJsonParse)(parametersJson, `Node Parameters ${i + 1}`);
                         }
                         catch (error) {
-                            throw new n8n_workflow_1.NodeOperationError(this.getNode(), `Node Parameters ${i + 1}: ${error.message}`);
+                            const errorMsg = error instanceof Error ? error.message : String(error);
+                            throw new n8n_workflow_1.NodeOperationError(this.getNode(), `Node Parameters ${i + 1}: ${errorMsg}`);
                         }
                         if (typeof parameters !== 'object' || parameters === null) {
                             throw new n8n_workflow_1.NodeOperationError(this.getNode(), `Node Parameters ${i + 1}: Parameters must be a JSON object`);
@@ -415,7 +416,7 @@ class ComfyUi {
                                             throw new n8n_workflow_1.NodeOperationError(this.getNode(), `Node Parameters ${i + 1}: Downloaded image size (${Math.round(imageBuffer.length / 1024 / 1024)}MB) exceeds maximum allowed size of ${constants_1.VALIDATION.MAX_IMAGE_SIZE_MB}MB`);
                                         }
                                         logger.info(`Successfully downloaded image`, { size: imageBuffer.length, url: imageUrl });
-                                        let filename = imageUrl.split('/').pop() || `download_${Date.now()}.png`;
+                                        let filename = imageUrl.split('/').pop() || (0, utils_1.generateUniqueFilename)('png', 'download');
                                         if (filename.includes('?')) {
                                             filename = filename.split('?')[0];
                                         }
@@ -427,7 +428,8 @@ class ComfyUi {
                                                 filename = (0, utils_1.validateFilename)(filename);
                                             }
                                             catch (error) {
-                                                logger.warn(`Invalid filename "${filename}", generating unique filename`, { error: error.message });
+                                                const errorMsg = error instanceof Error ? error.message : String(error);
+                                                logger.warn(`Invalid filename "${filename}", generating unique filename`, { error: errorMsg });
                                                 filename = (0, utils_1.generateUniqueFilename)('png', 'download');
                                             }
                                         }
@@ -443,11 +445,12 @@ class ComfyUi {
                                         }
                                         const statusCode = error.response?.statusCode || error.statusCode;
                                         const statusMessage = error.response?.statusMessage || error.statusMessage;
+                                        const errorDetail = error instanceof Error ? error.message : String(error);
                                         let errorMessage = `Node Parameters ${i + 1}: Failed to download image from URL "${imageUrl}"`;
                                         if (statusCode) {
                                             errorMessage += ` (HTTP ${statusCode} ${statusMessage || ''})`;
                                         }
-                                        errorMessage += `. ${error.message}`;
+                                        errorMessage += `. ${errorDetail}`;
                                         if (statusCode === 403) {
                                             errorMessage += ' Note: The URL may require authentication or block automated access. Try downloading the image manually and using Binary mode instead.';
                                         }

@@ -11,6 +11,7 @@
  */
 
 import axios from 'axios';
+import { randomInt } from 'crypto';
 import {
   PromptResponse,
   HistoryResponse,
@@ -26,10 +27,10 @@ import { getWorkflowTemplate } from '../nodes/workflowConfig';
 
 // Logger interface and implementation
 interface ILogger {
-  debug(message: string, ...args: any[]): void;
-  info(message: string, ...args: any[]): void;
-  warn(message: string, ...args: any[]): void;
-  error(message: string, ...args: any[]): void;
+  debug(message: string, ...args: unknown[]): void;
+  info(message: string, ...args: unknown[]): void;
+  warn(message: string, ...args: unknown[]): void;
+  error(message: string, ...args: unknown[]): void;
 }
 
 class ConsoleLogger implements ILogger {
@@ -154,7 +155,7 @@ function parseInput(query: string): ParsedParameters {
     height: DEFAULT_HEIGHT,
     steps: DEFAULT_STEPS,
     cfg: DEFAULT_CFG,
-    seed: Math.floor(Math.random() * MAX_SEED_VALUE)
+    seed: randomInt(0, MAX_SEED_VALUE)
   };
 
   let currentQuery = query.trim();
@@ -164,11 +165,15 @@ function parseInput(query: string): ParsedParameters {
 
     if (value !== null) {
       if (pattern.paramKeys) {
-        pattern.paramKeys.forEach((key, index) => {
-          (params as any)[key] = value[Object.keys(value)[index]];
-        });
+        // Type guard: check if value is an object with keys
+        if (typeof value === 'object' && value !== null) {
+          const valueKeys = Object.keys(value);
+          pattern.paramKeys.forEach((key, index) => {
+            (params as Record<string, unknown>)[key] = value[valueKeys[index]];
+          });
+        }
       } else if (pattern.paramKey) {
-        (params as any)[pattern.paramKey] = value;
+        (params as Record<string, unknown>)[pattern.paramKey] = value;
       }
       currentQuery = cleanedQuery;
     }
@@ -209,7 +214,7 @@ function findNodeByClassType(workflow: Workflow, classType: string): string | nu
  * @returns Updated workflow
  */
 function updateWorkflow(workflow: Workflow, params: ParsedParameters): Workflow {
-  const updatedWorkflow: Workflow = structuredClone(workflow);
+  const updatedWorkflow: Workflow = JSON.parse(JSON.stringify(workflow));
 
   // Find and update positive and negative prompt nodes
   const clipTextEncodeNodes: string[] = [];
@@ -257,15 +262,19 @@ function updateWorkflow(workflow: Workflow, params: ParsedParameters): Workflow 
  * @param url - ComfyUI server URL
  * @returns Array of image information
  */
-function extractImagesFromOutputs(outputs: any, url: string): ImageInfo[] {
+function extractImagesFromOutputs(outputs: Record<string, unknown>, url: string): ImageInfo[] {
   const images: ImageInfo[] = [];
 
   for (const nodeId in outputs) {
-    if (!outputs[nodeId] || !outputs[nodeId].images) {
+    const nodeOutput = outputs[nodeId];
+    if (!nodeOutput || typeof nodeOutput !== 'object') {
       continue;
     }
 
-    const nodeImages = outputs[nodeId].images;
+    const nodeImages = (nodeOutput as any).images;
+    if (!nodeImages) {
+      continue;
+    }
 
     if (!Array.isArray(nodeImages) || nodeImages.length === 0) {
       continue;
@@ -289,15 +298,16 @@ function extractImagesFromOutputs(outputs: any, url: string): ImageInfo[] {
  * @param url - ComfyUI server URL
  * @returns Processed image information or null
  */
-function processImage(image: any, nodeId: string, url: string): ImageInfo | null {
+function processImage(image: unknown, nodeId: string, url: string): ImageInfo | null {
   if (!image || typeof image !== 'object') {
     logger.warn(`Invalid image object in node ${nodeId}`);
     return null;
   }
 
-  const filename = image.filename;
-  const subfolder = image.subfolder || '';
-  const type = image.type || 'output';
+  const imageObj = image as Record<string, unknown>;
+  const filename = imageObj.filename as string | undefined;
+  const subfolder = (imageObj.subfolder as string | undefined) || '';
+  const type = (imageObj.type as string | undefined) || 'output';
 
   if (!filename) {
     logger.warn(`Image missing filename in node ${nodeId}`);
@@ -332,16 +342,20 @@ async function executeComfyUIWorkflow(workflow: Workflow, comfyUiUrl?: string): 
     }, {
       timeout: QUEUE_REQUEST_TIMEOUT
     });
-  } catch (error: any) {
-    if (error.code === 'ECONNREFUSED') {
-      throw new Error(`Failed to connect to ComfyUI server at ${url}. Please check if the server is running.`);
-    } else if (error.code === 'ETIMEDOUT' || error.code === 'ECONNABORTED') {
-      throw new Error(`Connection timeout while connecting to ComfyUI server at ${url}.`);
-    } else if (error.response) {
-      throw new Error(`ComfyUI server returned error: ${error.response.status} ${error.response.statusText}`);
-    } else {
-      throw new Error(`Failed to queue workflow: ${error.message}`);
+  } catch (error: unknown) {
+    if (error instanceof Error) {
+      const errorCode = (error as any).code;
+      if (errorCode === 'ECONNREFUSED') {
+        throw new Error(`Failed to connect to ComfyUI server at ${url}. Please check if the server is running.`);
+      } else if (errorCode === 'ETIMEDOUT' || errorCode === 'ECONNABORTED') {
+        throw new Error(`Connection timeout while connecting to ComfyUI server at ${url}.`);
+      } else if ((error as any).response) {
+        throw new Error(`ComfyUI server returned error: ${(error as any).response.status} ${(error as any).response.statusText}`);
+      } else {
+        throw new Error(`Failed to queue workflow: ${error.message}`);
+      }
     }
+    throw new Error(`Failed to queue workflow: ${String(error)}`);
   }
 
   if (!promptResponse.data || !promptResponse.data.prompt_id) {
@@ -363,15 +377,18 @@ async function executeComfyUIWorkflow(workflow: Workflow, comfyUiUrl?: string): 
       historyResponse = await axios.get<HistoryResponse>(`${url}/history/${promptId}`, {
         timeout: HISTORY_REQUEST_TIMEOUT
       });
-    } catch (error: any) {
-      if (error.code === 'ECONNREFUSED') {
+    } catch (error: unknown) {
+      const errorCode = error instanceof Error ? (error as any).code : undefined;
+      const errorMessage = error instanceof Error ? error.message : String(error);
+
+      if (errorCode === 'ECONNREFUSED') {
         throw new Error(`Lost connection to ComfyUI server at ${url}.`);
-      } else if (error.code === 'ETIMEDOUT' || error.code === 'ECONNABORTED') {
+      } else if (errorCode === 'ETIMEDOUT' || errorCode === 'ECONNABORTED') {
         logger.warn(`Timeout checking history (attempt ${attempts + 1}/${POLLING_MAX_ATTEMPTS})`);
         attempts++;
         continue;
       } else {
-        logger.warn(`Error checking history: ${error.message}`);
+        logger.warn(`Error checking history: ${errorMessage}`);
         attempts++;
         continue;
       }
@@ -442,13 +459,14 @@ export async function handleToolInput(query: string, options: ToolInputOptions =
       }
     };
 
-  } catch (error: any) {
-    logger.error('Error:', error.message);
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    logger.error('Error:', errorMessage);
 
     return {
       success: false,
-      error: error.message,
-      message: `Failed to generate image: ${error.message}`
+      error: errorMessage,
+      message: `Failed to generate image: ${errorMessage}`
     };
   }
 }

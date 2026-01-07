@@ -25,7 +25,7 @@ export interface NodeParameterInput {
     nodeParameter: NodeParameterConfig[];
 }
 export interface WorkflowNode {
-    inputs: Record<string, any>;
+    inputs: Record<string, unknown>;
     class_type: string;
 }
 export interface PromptResponse {
@@ -33,7 +33,7 @@ export interface PromptResponse {
 }
 export interface HistoryResponse {
     [key: string]: {
-        outputs?: any;
+        outputs?: unknown;
         status?: {
             completed: boolean;
         };
@@ -56,12 +56,13 @@ export interface ParsedParameters {
     steps: number;
     cfg: number;
     seed: number;
+    [key: string]: unknown;
 }
 export interface ParameterPattern {
     regex: RegExp;
     paramKey?: string;
     paramKeys?: string[];
-    parser: (match: RegExpMatchArray) => any;
+    parser: (match: RegExpMatchArray) => unknown;
 }
 export interface ToolInputOptions {
     comfyUiUrl?: string;
@@ -82,7 +83,7 @@ export interface ToolResult {
     };
 }
 export interface ParameterExtractionResult {
-    value: any;
+    value: unknown;
     cleanedQuery: string;
 }
 export type { ComfyUIClientConfig, WorkflowExecution, WorkflowResult } from './ComfyUiClient';

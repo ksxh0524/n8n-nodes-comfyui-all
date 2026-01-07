@@ -361,11 +361,12 @@ export class ComfyUi {
           }
 
           if (parameterMode === 'multiple' && parametersJson) {
-            let parameters: Record<string, any>;
+            let parameters: Record<string, unknown>;
             try {
               parameters = safeJsonParse(parametersJson, `Node Parameters ${i + 1}`);
-            } catch (error: any) {
-              throw new NodeOperationError(this.getNode(), `Node Parameters ${i + 1}: ${error.message}`);
+            } catch (error: unknown) {
+              const errorMsg = error instanceof Error ? error.message : String(error);
+              throw new NodeOperationError(this.getNode(), `Node Parameters ${i + 1}: ${errorMsg}`);
             }
 
             if (typeof parameters !== 'object' || parameters === null) {
@@ -382,7 +383,7 @@ export class ComfyUi {
               throw new NodeOperationError(this.getNode(), `Node Parameters ${i + 1}: Type is required for single parameter mode.`);
             }
 
-            let parsedValue: any;
+            let parsedValue: unknown;
 
             switch (type) {
               case 'text':
@@ -447,7 +448,7 @@ export class ComfyUi {
 
                     logger.info(`Successfully downloaded image`, { size: imageBuffer.length, url: imageUrl });
 
-                    let filename = imageUrl.split('/').pop() || `download_${Date.now()}.png`;
+                    let filename = imageUrl.split('/').pop() || generateUniqueFilename('png', 'download');
                     if (filename.includes('?')) {
                       filename = filename.split('?')[0];
                     }
@@ -457,8 +458,9 @@ export class ComfyUi {
                     } else {
                       try {
                         filename = validateFilename(filename);
-                      } catch (error: any) {
-                        logger.warn(`Invalid filename "${filename}", generating unique filename`, { error: error.message });
+                      } catch (error: unknown) {
+                        const errorMsg = error instanceof Error ? error.message : String(error);
+                        logger.warn(`Invalid filename "${filename}", generating unique filename`, { error: errorMsg });
                         filename = generateUniqueFilename('png', 'download');
                       }
                     }
@@ -470,18 +472,19 @@ export class ComfyUi {
                     workflow[nodeId].inputs[paramName] = parsedValue;
 
                     logger.info(`Successfully uploaded image to ComfyUI`, { paramName, filename: uploadedFilename });
-                  } catch (error: any) {
+                  } catch (error: unknown) {
                     if (error instanceof NodeOperationError) {
                       throw error;
                     }
 
-                    const statusCode = error.response?.statusCode || error.statusCode;
-                    const statusMessage = error.response?.statusMessage || error.statusMessage;
+                    const statusCode = (error as any).response?.statusCode || (error as any).statusCode;
+                    const statusMessage = (error as any).response?.statusMessage || (error as any).statusMessage;
+                    const errorDetail = error instanceof Error ? error.message : String(error);
                     let errorMessage = `Node Parameters ${i + 1}: Failed to download image from URL "${imageUrl}"`;
                     if (statusCode) {
                       errorMessage += ` (HTTP ${statusCode} ${statusMessage || ''})`;
                     }
-                    errorMessage += `. ${error.message}`;
+                    errorMessage += `. ${errorDetail}`;
 
                     if (statusCode === 403) {
                       errorMessage += ' Note: The URL may require authentication or block automated access. Try downloading the image manually and using Binary mode instead.';
