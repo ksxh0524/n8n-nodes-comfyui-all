@@ -123,6 +123,116 @@ export declare class ComfyUi {
                     default: string;
                     description: string;
                     placeholder: string;
+                    required: boolean;
+                    options?: undefined;
+                    displayOptions?: undefined;
+                    typeOptions?: undefined;
+                    hint?: undefined;
+                } | {
+                    displayName: string;
+                    name: string;
+                    type: string;
+                    default: string;
+                    description: string;
+                    options: {
+                        name: string;
+                        value: string;
+                        description: string;
+                    }[];
+                    placeholder?: undefined;
+                    required?: undefined;
+                    displayOptions?: undefined;
+                    typeOptions?: undefined;
+                    hint?: undefined;
+                } | {
+                    displayName: string;
+                    name: string;
+                    type: string;
+                    default: string;
+                    description: string;
+                    placeholder: string;
+                    displayOptions: {
+                        show: {
+                            parameterMode: string[];
+                            type?: undefined;
+                            imageSource?: undefined;
+                        };
+                    };
+                    required?: undefined;
+                    options?: undefined;
+                    typeOptions?: undefined;
+                    hint?: undefined;
+                } | {
+                    displayName: string;
+                    name: string;
+                    type: string;
+                    typeOptions: {
+                        rows: number;
+                    };
+                    default: string;
+                    description: string;
+                    placeholder: string;
+                    displayOptions: {
+                        show: {
+                            parameterMode: string[];
+                            type?: undefined;
+                            imageSource?: undefined;
+                        };
+                    };
+                    required?: undefined;
+                    options?: undefined;
+                    hint?: undefined;
+                } | {
+                    displayName: string;
+                    name: string;
+                    type: string;
+                    default: string;
+                    description: string;
+                    options: {
+                        name: string;
+                        value: string;
+                        description: string;
+                    }[];
+                    displayOptions: {
+                        show: {
+                            parameterMode: string[];
+                            type?: undefined;
+                            imageSource?: undefined;
+                        };
+                    };
+                    placeholder?: undefined;
+                    required?: undefined;
+                    typeOptions?: undefined;
+                    hint?: undefined;
+                } | {
+                    displayName: string;
+                    name: string;
+                    type: string;
+                    default: string;
+                    description: string;
+                    options: {
+                        name: string;
+                        value: string;
+                        description: string;
+                    }[];
+                    displayOptions: {
+                        show: {
+                            parameterMode: string[];
+                            type: string[];
+                            imageSource?: undefined;
+                        };
+                    };
+                    placeholder?: undefined;
+                    required?: undefined;
+                    typeOptions?: undefined;
+                    hint?: undefined;
+                } | {
+                    displayName: string;
+                    name: string;
+                    type: string;
+                    default: string;
+                    description: string;
+                    placeholder: string;
                     displayOptions: {
                         show: {
                             parameterMode: string[];
@@ -141,98 +251,6 @@ export declare class ComfyUi {
                     default: string;
                     description: string;
                     placeholder: string;
-                    required: boolean;
-                    displayOptions?: undefined;
-                    hint?: undefined;
-                    options?: undefined;
-                    typeOptions?: undefined;
-                } | {
-                    displayName: string;
-                    name: string;
-                    type: string;
-                    default: string;
-                    description: string;
-                    options: {
-                        name: string;
-                        value: string;
-                        description: string;
-                    }[];
-                    placeholder?: undefined;
-                    displayOptions?: undefined;
-                    hint?: undefined;
-                    required?: undefined;
-                    typeOptions?: undefined;
-                } | {
-                    displayName: string;
-                    name: string;
-                    type: string;
-                    default: string;
-                    description: string;
-                    placeholder: string;
-                    displayOptions: {
-                        show: {
-                            parameterMode: string[];
-                            type?: undefined;
-                            imageSource?: undefined;
-                        };
-                    };
-                    hint?: undefined;
-                    required?: undefined;
-                    options?: undefined;
-                    typeOptions?: undefined;
-                } | {
-                    displayName: string;
-                    name: string;
-                    type: string;
-                    typeOptions: {
-                        rows: number;
-                    };
-                    default: string;
-                    description: string;
-                    placeholder: string;
-                    displayOptions: {
-                        show: {
-                            parameterMode: string[];
-                            type?: undefined;
-                            imageSource?: undefined;
-                        };
-                    };
-                    hint?: undefined;
-                    required?: undefined;
-                    options?: undefined;
-                } | {
-                    displayName: string;
-                    name: string;
-                    type: string;
-                    default: string;
-                    description: string;
-                    options: {
-                        name: string;
-                        value: string;
-                        description: string;
-                    }[];
-                    displayOptions: {
-                        show: {
-                            parameterMode: string[];
-                            type?: undefined;
-                            imageSource?: undefined;
-                        };
-                    };
-                    placeholder?: undefined;
-                    hint?: undefined;
-                    required?: undefined;
-                    typeOptions?: undefined;
-                } | {
-                    displayName: string;
-                    name: string;
-                    type: string;
-                    default: string;
-                    description: string;
-                    options: {
-                        name: string;
-                        value: string;
-                        description: string;
-                    }[];
                     displayOptions: {
                         show: {
                             parameterMode: string[];
@@ -240,28 +258,10 @@ export declare class ComfyUi {
                             imageSource?: undefined;
                         };
                     };
-                    placeholder?: undefined;
-                    hint?: undefined;
-                    required?: undefined;
-                    typeOptions?: undefined;
-                } | {
-                    displayName: string;
-                    name: string;
-                    type: string;
-                    default: string;
-                    description: string;
-                    placeholder: string;
-                    displayOptions: {
-                        show: {
-                            parameterMode: string[];
-                            type: string[];
-                            imageSource?: undefined;
-                        };
-                    };
-                    hint?: undefined;
                     required?: undefined;
                     options?: undefined;
                     typeOptions?: undefined;
+                    hint?: undefined;
                 } | {
                     displayName: string;
                     name: string;
@@ -276,10 +276,10 @@ export declare class ComfyUi {
                             imageSource?: undefined;
                         };
                     };
-                    hint?: undefined;
                     required?: undefined;
                     options?: undefined;
                     typeOptions?: undefined;
+                    hint?: undefined;
                 })[];
             }[];
             required?: undefined;

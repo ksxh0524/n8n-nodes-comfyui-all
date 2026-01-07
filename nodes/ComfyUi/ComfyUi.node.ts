@@ -113,29 +113,13 @@ export class ComfyUi {
             name: 'nodeParameter',
             values: [
 											{
-												displayName: 'Image URL',
-												name: 'imageUrl',
-												type: 'string',
-												default: '',
-												description: 'URL of the image to download and upload to ComfyUI',
-												placeholder: 'https://example.com/image.png',
-												displayOptions: {
-													show: {
-														parameterMode: ['single'],
-														type: ['image'],
-														imageSource: ['url'],
-													},
-												},
-												hint: 'Enter the URL of the image to use',
-											},
-											{
 												displayName: 'Node ID',
 												name: 'nodeId',
 												type: 'string',
 												default: '',
 												description: 'The node ID in your workflow (e.g., \'13\', \'3\', \'6\')',
 												placeholder: '13',
-													required:	true,
+												required: true,
 											},
 											{
 												displayName: 'Parameter Mode',
@@ -177,8 +161,8 @@ export class ComfyUi {
 													rows: 10,
 												},
 												default: '',
-												description: 'JSON object containing all parameters for this node. Example:	{\'width\':	1024, \'height\':	1024, \'batch_size\':	1}. Use this to configure multiple parameters at once.',
-												placeholder: '{\n	 \'width\':	1024,\n	 \'height\':	1024,\n	 \'batch_size\':	1\n}',
+												description: 'JSON object containing all parameters for this node. Example: {\'width\': 1024, \'height\': 1024, \'batch_size\': 1}. Use this to configure multiple parameters at once.',
+												placeholder: '{\n  \'width\': 1024,\n  \'height\': 1024,\n  \'batch_size\': 1\n}',
 												displayOptions: {
 													show: {
 														parameterMode: ['multiple'],
@@ -243,6 +227,22 @@ export class ComfyUi {
 														type: ['image'],
 													},
 												},
+											},
+											{
+												displayName: 'Image URL',
+												name: 'imageUrl',
+												type: 'string',
+												default: '',
+												description: 'URL of the image to download and upload to ComfyUI',
+												placeholder: 'https://example.com/image.png',
+												displayOptions: {
+													show: {
+														parameterMode: ['single'],
+														type: ['image'],
+														imageSource: ['url'],
+													},
+												},
+												hint: 'Enter the URL of the image to use',
 											},
 											{
 												displayName: 'Value',
