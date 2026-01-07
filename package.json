@@ -1,6 +1,6 @@
 {
   "name": "n8n-nodes-comfyui-all",
-  "version": "2.1.5",
+  "version": "2.1.6",
   "description": "n8n community nodes for ComfyUI workflow execution with dynamic parameter support",
   "keywords": [
     "n8n-community-node-package",
@@ -31,7 +31,9 @@
     "prepublishOnly": "npm run build && npm run lint -s"
   },
   "files": [
-    "dist"
+    "dist",
+    "LICENSE",
+    "README.md"
   ],
   "n8n": {
     "n8nNodesApiVersion": 1,
