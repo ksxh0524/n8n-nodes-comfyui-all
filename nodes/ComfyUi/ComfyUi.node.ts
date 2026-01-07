@@ -442,43 +442,104 @@ export class ComfyUi {
                     throw new NodeOperationError(this.getNode(), `Node Parameters ${i + 1}: Invalid image URL "${imageUrl}". Must be a valid HTTP/HTTPS URL.`);
                   }
 
-                  try {
-                    // Download image from URL
-                    logger.debug(`Downloading image from URL`, { url: imageUrl, paramName });
-                    const imageResponse = await this.helpers.httpRequest({
-                      method: 'GET',
-                      url: imageUrl,
-                      encoding: 'arraybuffer',
-                      timeout: timeout * 1000,
-                    });
-                    const imageBuffer = Buffer.from(imageResponse);
+                  // Check if this is a ComfyUI URL (from the same server)
+                  const isComfyUIUrl = imageUrl.includes(comfyUiUrl) || imageUrl.includes('/view?filename=');
 
-                    // Extract filename from URL or generate default
-                    let filename = imageUrl.split('/').pop() || `download_${Date.now()}.png`;
-                    if (filename.includes('?')) {
-                      filename = filename.split('?')[0];
+                  if (isComfyUIUrl) {
+                    // This is a ComfyUI URL, extract filename directly
+                    logger.debug(`Detected ComfyUI URL, extracting filename`, { url: imageUrl, paramName });
+                    try {
+                      const urlObj = new URL(imageUrl);
+                      const filename = urlObj.searchParams.get('filename');
+
+                      if (!filename) {
+                        throw new NodeOperationError(this.getNode(), `Node Parameters ${i + 1}: Could not extract filename from ComfyUI URL "${imageUrl}". The URL must contain a "filename" parameter.`);
+                      }
+
+                      // Use the filename directly
+                      parsedValue = filename;
+                      workflow[nodeId].inputs[paramName] = parsedValue;
+
+                      logger.debug(`Using ComfyUI filename directly`, { paramName, filename });
+                    } catch (error: any) {
+                      throw new NodeOperationError(this.getNode(), `Node Parameters ${i + 1}: Failed to parse ComfyUI URL "${imageUrl}": ${error.message}`);
                     }
-                    if (!filename.match(/\.(png|jpg|jpeg|webp|gif|bmp)$/i)) {
-                      filename = `download_${Date.now()}.png`;
+                  } else {
+                    // External URL, need to download and upload
+                    try {
+                      logger.debug(`Downloading image from external URL`, { url: imageUrl, paramName });
+                      const imageResponse = await this.helpers.httpRequest({
+                        method: 'GET',
+                        url: imageUrl,
+                        encoding: 'arraybuffer',
+                        timeout: timeout * 1000,
+                        headers: {
+                          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                          'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
+                          'Accept-Language': 'en-US,en;q=0.9',
+                        },
+                      });
+
+                      if (!imageResponse || !Buffer.isBuffer(imageResponse)) {
+                        throw new NodeOperationError(this.getNode(), `Node Parameters ${i + 1}: Failed to download image from URL "${imageUrl}". The server did not return valid image data. Please check the URL and try again.`);
+                      }
+
+                      const imageBuffer = Buffer.from(imageResponse);
+
+                      // Check if buffer is empty
+                      if (imageBuffer.length === 0) {
+                        throw new NodeOperationError(this.getNode(), `Node Parameters ${i + 1}: Downloaded image from URL "${imageUrl}" is empty. Please check the URL and try again.`);
+                      }
+
+                      // Extract filename from URL or generate default
+                      let filename = imageUrl.split('/').pop() || `download_${Date.now()}.png`;
+                      if (filename.includes('?')) {
+                        filename = filename.split('?')[0];
+                      }
+                      if (!filename.match(/\.(png|jpg|jpeg|webp|gif|bmp)$/i)) {
+                        filename = `download_${Date.now()}.png`;
+                      }
+
+                      // Upload to ComfyUI and get the filename
+                      const uploadedFilename = await client.uploadImage(imageBuffer, filename);
+
+                      // Set the parameter value to the uploaded filename
+                      parsedValue = uploadedFilename;
+                      workflow[nodeId].inputs[paramName] = parsedValue;
+
+                      logger.debug(`Successfully downloaded and uploaded image from external URL`, { paramName, filename: uploadedFilename });
+                    } catch (error: any) {
+                      if (error instanceof NodeOperationError) {
+                        throw error;
+                      }
+                      // Provide more helpful error message
+                      const statusCode = error.response?.statusCode || error.statusCode;
+                      const statusMessage = error.response?.statusMessage || error.statusMessage;
+                      let errorMessage = `Node Parameters ${i + 1}: Failed to download image from URL "${imageUrl}"`;
+                      if (statusCode) {
+                        errorMessage += ` (HTTP ${statusCode} ${statusMessage || ''})`;
+                      }
+                      errorMessage += `. ${error.message}`;
+
+                      // Add helpful hints
+                      if (statusCode === 403) {
+                        errorMessage += ' Note: The URL may require authentication or block automated access. Try downloading the image manually and using Binary mode instead.';
+                      } else if (statusCode === 404) {
+                        errorMessage += ' Note: The URL may be incorrect or the image may have been removed.';
+                      } else if (statusCode === 400) {
+                        errorMessage += ' Note: The URL may be malformed or the server may be rejecting the request. Try using a different URL or download the image manually and use Binary mode.';
+                      }
+
+                      throw new NodeOperationError(this.getNode(), errorMessage);
                     }
-
-                    // Upload to ComfyUI and get the filename
-                    const uploadedFilename = await client.uploadImage(imageBuffer, filename);
-
-                    // Set the parameter value to the uploaded filename
-                    parsedValue = uploadedFilename;
-                    workflow[nodeId].inputs[paramName] = parsedValue;
-
-                    logger.debug(`Successfully downloaded and uploaded image from URL`, { paramName, filename: uploadedFilename });
-                  } catch (error: any) {
-                    throw new NodeOperationError(this.getNode(), `Node Parameters ${i + 1}: Failed to download image from URL: ${error.message}`);
                   }
                 } else {
                   // Get input binary data
                   const inputData = this.getInputData(0);
                   const binaryPropertyName = value || 'data';
                   if (!inputData || !inputData[0] || !inputData[0].binary || !inputData[0].binary[binaryPropertyName]) {
-                    throw new NodeOperationError(this.getNode(), `Node Parameters ${i + 1}: Binary property "${binaryPropertyName}" not found in input data. Please ensure the input contains binary data.`);
+                    const availableKeys = inputData && inputData[0] && inputData[0].binary ? Object.keys(inputData[0].binary).join(', ') : 'none';
+                    throw new NodeOperationError(this.getNode(), `Node Parameters ${i + 1}: Binary property "${binaryPropertyName}" not found in input data. Available binary properties: ${availableKeys}. Please check the input node configuration.`);
                   }
 
                   const binaryData = inputData[0].binary[binaryPropertyName];
