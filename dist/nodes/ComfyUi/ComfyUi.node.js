@@ -206,6 +206,21 @@ class ComfyUi {
                                 },
                                 {
                                     displayName: 'Value',
+                                    name: 'value',
+                                    type: 'string',
+                                    default: 'data',
+                                    description: 'Binary property name from input data (e.g., "data", "image", "file").',
+                                    placeholder: 'data',
+                                    displayOptions: {
+                                        show: {
+                                            parameterMode: ['single'],
+                                            type: ['binary'],
+                                        },
+                                    },
+                                    hint: 'Enter the binary property name to use as input.',
+                                },
+                                {
+                                    displayName: 'Value',
                                     name: 'numberValue',
                                     type: 'number',
                                     default: 0,
@@ -242,21 +257,6 @@ class ComfyUi {
                                             type: ['boolean'],
                                         },
                                     },
-                                },
-                                {
-                                    displayName: 'Value',
-                                    name: 'binaryValue',
-                                    type: 'string',
-                                    default: 'data',
-                                    description: 'Binary property name from input data (e.g., "data", "image", "file").',
-                                    placeholder: 'data',
-                                    displayOptions: {
-                                        show: {
-                                            parameterMode: ['single'],
-                                            type: ['binary'],
-                                        },
-                                    },
-                                    hint: 'Enter the binary property name to use as input. Default is "data".',
                                 },
                             ],
                         },
@@ -308,10 +308,9 @@ class ComfyUi {
                     const paramName = nodeParamConfig.paramName;
                     const type = nodeParamConfig.type || 'text';
                     // Get the appropriate value based on type
-                    const value = nodeParamConfig.value;
+                    const value = nodeParamConfig.value || '';
                     const numberValue = nodeParamConfig.numberValue;
                     const booleanValue = nodeParamConfig.booleanValue;
-                    const binaryValue = nodeParamConfig.binaryValue || 'data';
                     if (!nodeId) {
                         throw new n8n_workflow_1.NodeOperationError(this.getNode(), `Node Parameters ${i + 1} is missing Node ID.`);
                     }
@@ -358,10 +357,11 @@ class ComfyUi {
                             case 'binary':
                                 // Get input binary data
                                 const inputData = this.getInputData(0);
-                                if (!inputData || !inputData[0] || !inputData[0].binary || !inputData[0].binary[binaryValue]) {
-                                    throw new n8n_workflow_1.NodeOperationError(this.getNode(), `Node Parameters ${i + 1}: Binary property "${binaryValue}" not found in input data. Please ensure the input contains binary data.`);
+                                const binaryPropertyName = value || 'data';
+                                if (!inputData || !inputData[0] || !inputData[0].binary || !inputData[0].binary[binaryPropertyName]) {
+                                    throw new n8n_workflow_1.NodeOperationError(this.getNode(), `Node Parameters ${i + 1}: Binary property "${binaryPropertyName}" not found in input data. Please ensure the input contains binary data.`);
                                 }
-                                const binaryData = inputData[0].binary[binaryValue];
+                                const binaryData = inputData[0].binary[binaryPropertyName];
                                 const buffer = Buffer.from(binaryData.data, 'base64');
                                 const filename = binaryData.fileName || `upload_${Date.now()}.${binaryData.mimeType.split('/')[1] || 'png'}`;
                                 // Upload to ComfyUI and get the filename
