@@ -124,7 +124,16 @@ export class ParameterProcessor {
       const httpError = error as { response?: { statusCode?: number; statusMessage?: string } };
       const statusCode = httpError.response?.statusCode;
       const statusMessage = httpError.response?.statusMessage;
-      const errorDetail = error instanceof Error ? error.message : String(error);
+      let errorDetail = '';
+      
+      if (error instanceof Error) {
+        errorDetail = error.message;
+      } else if (error && typeof error === 'object') {
+        errorDetail = JSON.stringify(error);
+      } else {
+        errorDetail = String(error);
+      }
+      
       let errorMessage = `Node Parameters ${index + 1}: Failed to download image from URL "${imageUrl}"`;
       if (statusCode) {
         errorMessage += ` (HTTP ${statusCode} ${statusMessage || ''})`;
