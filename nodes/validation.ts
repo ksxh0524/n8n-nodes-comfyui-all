@@ -2,14 +2,26 @@ import { ValidationResult } from './types';
 
 const MAX_JSON_SIZE = 1 * 1024 * 1024;
 const MAX_JSON_DEPTH = 100;
+const MAX_JSON_NODES = 10000; // Maximum number of nodes to traverse
 
 /**
  * Calculate object depth using iteration to prevent stack overflow on large objects
+ *
+ * Performance optimizations:
+ * - Uses iteration instead of recursion to prevent stack overflow
+ * - Limits maximum node count to prevent performance degradation
+ * - Early termination when limits are exceeded
+ *
  * @param obj - Object to calculate depth for
  * @param maxDepth - Maximum depth to calculate (default: 100)
+ * @param maxNodes - Maximum number of nodes to traverse (default: 10000)
  * @returns Object depth or maxDepth if exceeded
  */
-function getObjectDepth(obj: unknown, maxDepth: number = MAX_JSON_DEPTH): number {
+function getObjectDepth(
+  obj: unknown,
+  maxDepth: number = MAX_JSON_DEPTH,
+  maxNodes: number = MAX_JSON_NODES
+): number {
   if (typeof obj !== 'object' || obj === null) {
     return 1;
   }
@@ -17,9 +29,16 @@ function getObjectDepth(obj: unknown, maxDepth: number = MAX_JSON_DEPTH): number
   // Use iterative approach with a stack to avoid recursion stack overflow
   const stack: Array<{ value: unknown; depth: number }> = [{ value: obj, depth: 1 }];
   let calculatedMaxDepth = 1;
+  let nodeCount = 0;
 
   while (stack.length > 0) {
     const { value, depth } = stack.pop()!;
+    nodeCount++;
+
+    // Early termination if node count limit exceeded
+    if (nodeCount > maxNodes) {
+      return calculatedMaxDepth;
+    }
 
     // Update max depth
     if (depth > calculatedMaxDepth) {

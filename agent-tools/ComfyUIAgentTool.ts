@@ -26,6 +26,12 @@ import {
 } from '../nodes/types';
 import { getWorkflowTemplate } from '../nodes/workflowConfig';
 
+// Type for axios config with abort signal support
+type AxiosConfigWithSignal = {
+  timeout?: number;
+  signal?: AbortSignal;
+};
+
 // Logger interface and implementation
 interface ILogger {
   debug(message: string, ...args: unknown[]): void;
@@ -66,6 +72,23 @@ const logger = new ConsoleLogger('[ComfyUI Tool]');
 // Default configuration
 const DEFAULT_COMFYUI_URL = 'http://127.0.0.1:8188';
 
+// Global AbortController for cancelling requests
+let currentAbortController: AbortController | null = null;
+
+/**
+ * Cancel any ongoing ComfyUI workflow execution
+ * @returns {boolean} True if a request was cancelled, false if no request was in progress
+ */
+export function cancelComfyUIExecution(): boolean {
+  if (currentAbortController) {
+    currentAbortController.abort();
+    currentAbortController = null;
+    logger.info('ComfyUI workflow execution cancelled');
+    return true;
+  }
+  return false;
+}
+
 // Parameter default values
 const DEFAULT_NEGATIVE_PROMPT = 'ugly, blurry, low quality, distorted';
 const DEFAULT_WIDTH = 512;
@@ -96,12 +119,12 @@ function delay(ms: number): Promise<void> {
 // Parameter extraction rules configuration
 const PARAM_PATTERNS: Record<string, ParameterPattern> = {
   negative: {
-    regex: /negative:\s*([^\n]+)/i,
+    regex: /(?<=\s|,|，|^)negative:\s*([^\n]+)/i,
     paramKey: 'negative_prompt',
     parser: (match: RegExpMatchArray) => match[1].trim()
   },
   size: {
-    regex: /size:\s*(\d+)x(\d+)/i,
+    regex: /(?<=\s|,|，|^)size:\s*(\d+)x(\d+)/i,
     paramKeys: ['width', 'height'],
     parser: (match: RegExpMatchArray) => ({
       width: parseInt(match[1]),
@@ -109,17 +132,17 @@ const PARAM_PATTERNS: Record<string, ParameterPattern> = {
     })
   },
   steps: {
-    regex: /steps:\s*(\d+)/i,
+    regex: /(?<=\s|,|，|^)steps:\s*(\d+)/i,
     paramKey: 'steps',
     parser: (match: RegExpMatchArray) => parseInt(match[1])
   },
   cfg: {
-    regex: /cfg:\s*([\d.]+)/i,
+    regex: /(?<=\s|,|，|^)cfg:\s*([\d.]+)/i,
     paramKey: 'cfg',
     parser: (match: RegExpMatchArray) => parseFloat(match[1])
   },
   seed: {
-    regex: /seed:\s*(\d+)/i,
+    regex: /(?<=\s|,|，|^)seed:\s*(\d+)/i,
     paramKey: 'seed',
     parser: (match: RegExpMatchArray) => parseInt(match[1])
   }
@@ -328,98 +351,142 @@ function processImage(image: unknown, nodeId: string, url: string): ImageInfo | 
  * Execute ComfyUI workflow
  * @param workflow - ComfyUI workflow object
  * @param comfyUiUrl - ComfyUI server URL
+ * @param signal - Optional AbortSignal for cancelling the request
  */
-async function executeComfyUIWorkflow(workflow: Workflow, comfyUiUrl?: string): Promise<{
+async function executeComfyUIWorkflow(
+  workflow: Workflow,
+  comfyUiUrl?: string,
+  signal?: AbortSignal
+): Promise<{
   success: boolean;
   prompt_id: string;
   images: ImageInfo[];
 }> {
   const url = comfyUiUrl || DEFAULT_COMFYUI_URL;
 
-  // 1. Queue prompt
-  let promptResponse;
+  // Create new AbortController for this execution if not provided
+  const abortController = signal ? null : new AbortController();
+  const effectiveSignal = signal || abortController?.signal;
+
+  if (abortController) {
+    currentAbortController = abortController;
+  }
+
   try {
-    promptResponse = await axios.post<PromptResponse>(`${url}/prompt`, {
-      prompt: workflow
-    }, {
-      timeout: QUEUE_REQUEST_TIMEOUT
-    });
-  } catch (error: unknown) {
-    if (error instanceof Error) {
-      const httpError = error as HttpError;
-      const errorCode = httpError.code;
-      if (errorCode === 'ECONNREFUSED') {
-        throw new Error(`Failed to connect to ComfyUI server at ${url}. Please check if the server is running.`);
-      } else if (errorCode === 'ETIMEDOUT' || errorCode === 'ECONNABORTED') {
-        throw new Error(`Connection timeout while connecting to ComfyUI server at ${url}.`);
-      } else if (httpError.response) {
-        throw new Error(`ComfyUI server returned error: ${httpError.response.statusCode} ${httpError.response.statusMessage}`);
-      } else {
-        throw new Error(`Failed to queue workflow: ${error.message}`);
-      }
+    // Check if already aborted
+    if (effectiveSignal?.aborted) {
+      throw new Error('Workflow execution was cancelled before starting');
     }
-    throw new Error(`Failed to queue workflow: ${String(error)}`);
-  }
 
-  if (!promptResponse.data || !promptResponse.data.prompt_id) {
-    throw new Error('Invalid response from ComfyUI server: missing prompt_id');
-  }
-
-  const promptId = promptResponse.data.prompt_id;
-  logger.info(`Workflow queued with ID: ${promptId}`);
-
-  // 2. Poll for results
-  let attempts = 0;
-
-  while (attempts < POLLING_MAX_ATTEMPTS) {
-    await delay(POLLING_INTERVAL_MS);
-
-    // Check history
-    let historyResponse;
+    // 1. Queue prompt
+    let promptResponse;
     try {
-      historyResponse = await axios.get<HistoryResponse>(`${url}/history/${promptId}`, {
-        timeout: HISTORY_REQUEST_TIMEOUT
-      });
+      const config: AxiosConfigWithSignal = {
+        timeout: QUEUE_REQUEST_TIMEOUT,
+      };
+      if (effectiveSignal) {
+        config.signal = effectiveSignal;
+      }
+      promptResponse = await axios.post<PromptResponse>(`${url}/prompt`, {
+        prompt: workflow
+      }, config as unknown as Record<string, unknown>);
     } catch (error: unknown) {
-      const httpError = error instanceof Error ? error as HttpError : undefined;
-      const errorCode = httpError?.code;
-      const errorMessage = error instanceof Error ? error.message : String(error);
-
-      if (errorCode === 'ECONNREFUSED') {
-        throw new Error(`Lost connection to ComfyUI server at ${url}.`);
-      } else if (errorCode === 'ETIMEDOUT' || errorCode === 'ECONNABORTED') {
-        logger.warn(`Timeout checking history (attempt ${attempts + 1}/${POLLING_MAX_ATTEMPTS})`);
-        attempts++;
-        continue;
-      } else {
-        logger.warn(`Error checking history: ${errorMessage}`);
-        attempts++;
-        continue;
-      }
-    }
-
-    if (historyResponse.data && historyResponse.data[promptId]) {
-      const outputs = historyResponse.data[promptId].outputs as Record<string, unknown> | undefined;
-
-      if (outputs) {
-        const images = extractImagesFromOutputs(outputs, url);
-
-        if (images.length === 0) {
-          throw new Error('Workflow completed but no images were generated');
+      if (error instanceof Error) {
+        if (error.name === 'CanceledError' || effectiveSignal?.aborted) {
+          throw new Error('Workflow execution was cancelled');
         }
-
-        return {
-          success: true,
-          prompt_id: promptId,
-          images: images
-        };
+        const httpError = error as HttpError;
+        const errorCode = httpError.code;
+        if (errorCode === 'ECONNREFUSED') {
+          throw new Error(`Failed to connect to ComfyUI server at ${url}. Please check if the server is running.`);
+        } else if (errorCode === 'ETIMEDOUT' || errorCode === 'ECONNABORTED') {
+          throw new Error(`Connection timeout while connecting to ComfyUI server at ${url}.`);
+        } else if (httpError.response) {
+          throw new Error(`ComfyUI server returned error: ${httpError.response.statusCode} ${httpError.response.statusMessage}`);
+        } else {
+          throw new Error(`Failed to queue workflow: ${error.message}`);
+        }
       }
+      throw new Error(`Failed to queue workflow: ${String(error)}`);
     }
 
-    attempts++;
-  }
+    if (!promptResponse.data || !promptResponse.data.prompt_id) {
+      throw new Error('Invalid response from ComfyUI server: missing prompt_id');
+    }
 
-  throw new Error(`Workflow execution timeout after ${POLLING_MAX_ATTEMPTS} seconds (prompt_id: ${promptId}). The workflow may still be running on ComfyUI server.`);
+    const promptId = promptResponse.data.prompt_id;
+    logger.info(`Workflow queued with ID: ${promptId}`);
+
+    // 2. Poll for results
+    let attempts = 0;
+
+    while (attempts < POLLING_MAX_ATTEMPTS) {
+      // Check if aborted before each polling attempt
+      if (effectiveSignal?.aborted) {
+        throw new Error('Workflow execution was cancelled');
+      }
+
+      await delay(POLLING_INTERVAL_MS);
+
+      // Check history
+      let historyResponse;
+      try {
+        const config: AxiosConfigWithSignal = {
+          timeout: HISTORY_REQUEST_TIMEOUT,
+        };
+        if (effectiveSignal) {
+          config.signal = effectiveSignal;
+        }
+        historyResponse = await axios.get<HistoryResponse>(`${url}/history/${promptId}`, config as unknown as Record<string, unknown>);
+      } catch (error: unknown) {
+        if (effectiveSignal?.aborted || (error instanceof Error && error.name === 'CanceledError')) {
+          throw new Error('Workflow execution was cancelled');
+        }
+        const httpError = error instanceof Error ? error as HttpError : undefined;
+        const errorCode = httpError?.code;
+        const errorMessage = error instanceof Error ? error.message : String(error);
+
+        if (errorCode === 'ECONNREFUSED') {
+          throw new Error(`Lost connection to ComfyUI server at ${url}.`);
+        } else if (errorCode === 'ETIMEDOUT' || errorCode === 'ECONNABORTED') {
+          logger.warn(`Timeout checking history (attempt ${attempts + 1}/${POLLING_MAX_ATTEMPTS})`);
+          attempts++;
+          continue;
+        } else {
+          logger.warn(`Error checking history: ${errorMessage}`);
+          attempts++;
+          continue;
+        }
+      }
+
+      if (historyResponse.data && historyResponse.data[promptId]) {
+        const outputs = historyResponse.data[promptId].outputs as Record<string, unknown> | undefined;
+
+        if (outputs) {
+          const images = extractImagesFromOutputs(outputs, url);
+
+          if (images.length === 0) {
+            throw new Error('Workflow completed but no images were generated');
+          }
+
+          return {
+            success: true,
+            prompt_id: promptId,
+            images: images
+          };
+        }
+      }
+
+      attempts++;
+    }
+
+    throw new Error(`Workflow execution timeout after ${POLLING_MAX_ATTEMPTS} seconds (prompt_id: ${promptId}). The workflow may still be running on ComfyUI server.`);
+  } finally {
+    // Clean up AbortController
+    if (abortController) {
+      currentAbortController = null;
+    }
+  }
 }
 
 /**

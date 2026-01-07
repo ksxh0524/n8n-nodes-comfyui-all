@@ -37,13 +37,14 @@ export const NodeIds = {
 export const VALIDATION = {
   MAX_PROMPT_LENGTH: 10000,
   MAX_IMAGE_SIZE_MB: 50,
+  MAX_VIDEO_SIZE_MB: 500,
   MAX_SEED: 2147483647,
   MIN_FRAMES: 1,
   MAX_FRAMES: 128,
   MIN_DENOISE: 0,
   MAX_DENOISE: 1,
-  MAX_WAIT_TIME_MS: 300000,
-  REQUEST_TIMEOUT_MS: 300000,
+  MAX_WAIT_TIME_MS: parseInt(process.env.COMFYUI_MAX_WAIT_TIME_MS || '300000', 10),
+  REQUEST_TIMEOUT_MS: parseInt(process.env.COMFYUI_REQUEST_TIMEOUT_MS || '300000', 10),
   POLL_INTERVAL_MS: 1000,
   MAX_RETRIES: 3,
   RETRY_DELAY_MS: 1000,
@@ -77,6 +78,10 @@ export const IMAGE_MIME_TYPES: Record<string, string> = {
   'bmp': 'image/bmp',
   'svg': 'image/svg+xml',
 } as const;
+
+// Base64 encoding overhead factor
+// Base64 encoding increases size by approximately 33%, so decoding reduces by ~0.75
+export const BASE64_DECODE_FACTOR = 0.75;
 
 export const VIDEO_MIME_TYPES: Record<string, string> = {
   'mp4': 'video/mp4',
