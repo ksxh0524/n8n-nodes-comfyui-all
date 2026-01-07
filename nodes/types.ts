@@ -119,3 +119,31 @@ export interface HttpError extends Error {
   statusCode?: number;
   statusMessage?: string;
 }
+
+/**
+ * ComfyUI node output types
+ */
+export interface NodeOutput {
+  images?: Array<{
+    filename: string;
+    subfolder?: string;
+    type: string;
+  }>;
+  videos?: Array<{
+    filename: string;
+    subfolder?: string;
+    type: string;
+  }>;
+  gifs?: Array<{
+    filename: string;
+    subfolder?: string;
+    type: string;
+  }>;
+}
+
+/**
+ * Workflow outputs mapping
+ */
+export interface WorkflowOutputs {
+  [nodeId: string]: NodeOutput;
+}
