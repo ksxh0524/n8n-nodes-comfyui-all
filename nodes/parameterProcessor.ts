@@ -89,8 +89,16 @@ export class ParameterProcessor {
       this.logger.info(`Successfully downloaded image`, { size: imageBuffer.length, url: imageUrl });
       
       let filename = imageUrl.split('/').pop() || generateUniqueFilename('png', 'download');
+      
+      // Extract filename from URL query parameters if present
       if (filename.includes('?')) {
-        filename = filename.split('?')[0];
+        const urlParams = new URLSearchParams(filename.split('?')[1]);
+        const filenameParam = urlParams.get('filename');
+        if (filenameParam) {
+          filename = filenameParam;
+        } else {
+          filename = filename.split('?')[0];
+        }
       }
       
       // Detect image format from URL or use default
