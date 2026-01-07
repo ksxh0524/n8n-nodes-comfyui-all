@@ -163,7 +163,14 @@ export class ComfyUIClient {
             backoffDelay = Math.min(backoffDelay * 2, maxBackoffDelay);
 
             if (attempt > 0) {
-              const errorMsg = error instanceof Error ? error.message : String(error);
+              let errorMsg = '';
+              if (error instanceof Error) {
+                errorMsg = error.message;
+              } else if (error && typeof error === 'object') {
+                errorMsg = JSON.stringify(error);
+              } else {
+                errorMsg = String(error);
+              }
               this.logger.warn(`Request attempt ${attempt + 1}/${retries + 1} failed, retrying in ${backoffDelay}ms: ${errorMsg}`);
             }
 
