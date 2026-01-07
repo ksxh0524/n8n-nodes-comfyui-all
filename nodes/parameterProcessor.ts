@@ -53,7 +53,6 @@ export class ParameterProcessor {
 
     this.logger.info(`Downloading image from URL`, { url: imageUrl, paramName });
     try {
-      const { HTTP_HEADERS } = await import('./constants');
       const { validateFilename, generateUniqueFilename, getMaxImageSizeBytes, formatBytes } = await import('./utils');
 
       const imageResponse = await this.executeFunctions.helpers.httpRequest({
@@ -61,11 +60,6 @@ export class ParameterProcessor {
         url: imageUrl,
         encoding: 'arraybuffer',
         timeout: timeout * 1000,
-        headers: {
-          'User-Agent': HTTP_HEADERS.USER_AGENT,
-          'Accept': HTTP_HEADERS.ACCEPT,
-          'Accept-Language': HTTP_HEADERS.ACCEPT_LANGUAGE,
-        },
       });
 
       if (!imageResponse || !Buffer.isBuffer(imageResponse)) {
