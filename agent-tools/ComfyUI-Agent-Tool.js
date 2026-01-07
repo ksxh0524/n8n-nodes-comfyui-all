@@ -10,8 +10,8 @@
  * 4. 将此工具添加到 AI Agent 节点的 tools 列表中
  */
 
-// 配置
-const COMFYUI_URL = 'http://127.0.0.1:8188';
+// 默认配置
+const DEFAULT_COMFYUI_URL = 'http://127.0.0.1:8188';
 
 // 示例工作流模板（文本生成图像）
 // 你可以从 ComfyUI 导出你自己的工作流并替换这个模板
@@ -157,14 +157,37 @@ function updateWorkflow(workflow, params) {
 
 /**
  * 执行 ComfyUI 工作流
+ * @param {Object} workflow - ComfyUI 工作流对象
+ * @param {string} comfyUiUrl - ComfyUI 服务器 URL
  */
-async function executeComfyUIWorkflow(workflow) {
+async function executeComfyUIWorkflow(workflow, comfyUiUrl) {
   const axios = require('axios');
 
+  const url = comfyUiUrl || DEFAULT_COMFYUI_URL;
+
   // 1. 队列提示词
-  const promptResponse = await axios.post(`${COMFYUI_URL}/prompt`, {
-    prompt: workflow
-  });
+  let promptResponse;
+  try {
+    promptResponse = await axios.post(`${url}/prompt`, {
+      prompt: workflow
+    }, {
+      timeout: 30000 // 30秒超时
+    });
+  } catch (error) {
+    if (error.code === 'ECONNREFUSED') {
+      throw new Error(`Failed to connect to ComfyUI server at ${url}. Please check if the server is running.`);
+    } else if (error.code === 'ETIMEDOUT' || error.code === 'ECONNABORTED') {
+      throw new Error(`Connection timeout while connecting to ComfyUI server at ${url}.`);
+    } else if (error.response) {
+      throw new Error(`ComfyUI server returned error: ${error.response.status} ${error.response.statusText}`);
+    } else {
+      throw new Error(`Failed to queue workflow: ${error.message}`);
+    }
+  }
+
+  if (!promptResponse.data || !promptResponse.data.prompt_id) {
+    throw new Error('Invalid response from ComfyUI server: missing prompt_id');
+  }
 
   const promptId = promptResponse.data.prompt_id;
   console.log(`[ComfyUI Tool] Workflow queued with ID: ${promptId}`);
@@ -177,9 +200,26 @@ async function executeComfyUIWorkflow(workflow) {
     await new Promise(resolve => setTimeout(resolve, 1000));
 
     // 检查历史记录
-    const historyResponse = await axios.get(`${COMFYUI_URL}/history/${promptId}`);
+    let historyResponse;
+    try {
+      historyResponse = await axios.get(`${url}/history/${promptId}`, {
+        timeout: 10000 // 10秒超时
+      });
+    } catch (error) {
+      if (error.code === 'ECONNREFUSED') {
+        throw new Error(`Lost connection to ComfyUI server at ${url}.`);
+      } else if (error.code === 'ETIMEDOUT' || error.code === 'ECONNABORTED') {
+        console.warn(`[ComfyUI Tool] Timeout checking history (attempt ${attempts + 1}/${maxAttempts})`);
+        attempts++;
+        continue;
+      } else {
+        console.warn(`[ComfyUI Tool] Error checking history: ${error.message}`);
+        attempts++;
+        continue;
+      }
+    }
 
-    if (historyResponse.data[promptId]) {
+    if (historyResponse.data && historyResponse.data[promptId]) {
       const outputs = historyResponse.data[promptId].outputs;
 
       // 提取生成的图像
@@ -187,16 +227,34 @@ async function executeComfyUIWorkflow(workflow) {
         const images = [];
 
         for (const nodeId in outputs) {
-          if (outputs[nodeId].images && outputs[nodeId].images.length > 0) {
+          if (outputs[nodeId] && outputs[nodeId].images && Array.isArray(outputs[nodeId].images) && outputs[nodeId].images.length > 0) {
             for (const image of outputs[nodeId].images) {
+              if (!image || typeof image !== 'object') {
+                console.warn(`[ComfyUI Tool] Invalid image object in node ${nodeId}`);
+                continue;
+              }
+
+              const filename = image.filename;
+              const subfolder = image.subfolder || '';
+              const type = image.type || 'output';
+
+              if (!filename) {
+                console.warn(`[ComfyUI Tool] Image missing filename in node ${nodeId}`);
+                continue;
+              }
+
               images.push({
-                filename: image.filename,
-                subfolder: image.subfolder,
-                type: image.type,
-                url: `${COMFYUI_URL}/view?filename=${image.filename}&subfolder=${image.subfolder}&type=${image.type}`
+                filename: filename,
+                subfolder: subfolder,
+                type: type,
+                url: `${url}/view?filename=${filename}&subfolder=${subfolder}&type=${type}`
               });
             }
           }
+        }
+
+        if (images.length === 0) {
+          throw new Error('Workflow completed but no images were generated');
         }
 
         return {
@@ -210,15 +268,22 @@ async function executeComfyUIWorkflow(workflow) {
     attempts++;
   }
 
-  throw new Error('Workflow execution timeout');
+  throw new Error(`Workflow execution timeout after ${maxAttempts} seconds (prompt_id: ${promptId}). The workflow may still be running on the ComfyUI server.`);
 }
 
 /**
  * 主函数：处理工具调用
+ * @param {string} query - 用户查询文本
+ * @param {Object} options - 可选配置参数
+ * @param {string} options.comfyUiUrl - ComfyUI 服务器 URL
  */
-async function handleToolInput(query) {
+async function handleToolInput(query, options = {}) {
   try {
+    const { comfyUiUrl } = options;
     console.log(`[ComfyUI Tool] Received query: ${query}`);
+    if (comfyUiUrl) {
+      console.log(`[ComfyUI Tool] Using ComfyUI URL: ${comfyUiUrl}`);
+    }
 
     // 解析输入参数
     const params = parseInput(query);
@@ -228,7 +293,7 @@ async function handleToolInput(query) {
     const workflow = updateWorkflow(WORKFLOW_TEMPLATE, params);
 
     // 执行工作流
-    const result = await executeComfyUIWorkflow(workflow);
+    const result = await executeComfyUIWorkflow(workflow, comfyUiUrl);
 
     console.log(`[ComfyUI Tool] Generated ${result.images.length} image(s)`);
 
@@ -259,7 +324,8 @@ async function handleToolInput(query) {
 
 // for (const item of items) {
 //   const query = item.json.query || item.json.text || '';
-//   const result = await handleToolInput(query);
+//   const comfyUiUrl = item.json.comfyUiUrl || 'http://127.0.0.1:8188';
+//   const result = await handleToolInput(query, { comfyUiUrl });
 //   return result;
 // }
 
