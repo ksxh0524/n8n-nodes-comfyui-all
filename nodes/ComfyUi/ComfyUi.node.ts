@@ -431,6 +431,8 @@ export class ComfyUi {
                 break;
 
               case 'image':
+                logger.info(`Processing image parameter for node ${nodeId}`, { paramName, imageSource, imageUrl: imageUrl || 'N/A', value: value || 'N/A' });
+
                 if (imageSource === 'url') {
                   // Download image from URL
                   if (!imageUrl) {
@@ -447,7 +449,7 @@ export class ComfyUi {
 
                   if (isComfyUIUrl) {
                     // This is a ComfyUI URL, extract filename directly
-                    logger.debug(`Detected ComfyUI URL, extracting filename`, { url: imageUrl, paramName });
+                    logger.info(`Detected ComfyUI URL, extracting filename directly`, { url: imageUrl, paramName });
                     try {
                       const urlObj = new URL(imageUrl);
                       const filename = urlObj.searchParams.get('filename');
@@ -460,14 +462,14 @@ export class ComfyUi {
                       parsedValue = filename;
                       workflow[nodeId].inputs[paramName] = parsedValue;
 
-                      logger.debug(`Using ComfyUI filename directly`, { paramName, filename });
+                      logger.info(`Successfully extracted ComfyUI filename`, { paramName, filename });
                     } catch (error: any) {
                       throw new NodeOperationError(this.getNode(), `Node Parameters ${i + 1}: Failed to parse ComfyUI URL "${imageUrl}": ${error.message}`);
                     }
                   } else {
                     // External URL, need to download and upload
+                    logger.info(`Downloading image from external URL`, { url: imageUrl, paramName });
                     try {
-                      logger.debug(`Downloading image from external URL`, { url: imageUrl, paramName });
                       const imageResponse = await this.helpers.httpRequest({
                         method: 'GET',
                         url: imageUrl,
@@ -491,6 +493,8 @@ export class ComfyUi {
                         throw new NodeOperationError(this.getNode(), `Node Parameters ${i + 1}: Downloaded image from URL "${imageUrl}" is empty. Please check the URL and try again.`);
                       }
 
+                      logger.info(`Successfully downloaded image`, { size: imageBuffer.length, url: imageUrl });
+
                       // Extract filename from URL or generate default
                       let filename = imageUrl.split('/').pop() || `download_${Date.now()}.png`;
                       if (filename.includes('?')) {
@@ -500,6 +504,7 @@ export class ComfyUi {
                         filename = `download_${Date.now()}.png`;
                       }
 
+                      logger.info(`Uploading image to ComfyUI`, { filename, size: imageBuffer.length });
                       // Upload to ComfyUI and get the filename
                       const uploadedFilename = await client.uploadImage(imageBuffer, filename);
 
@@ -507,7 +512,7 @@ export class ComfyUi {
                       parsedValue = uploadedFilename;
                       workflow[nodeId].inputs[paramName] = parsedValue;
 
-                      logger.debug(`Successfully downloaded and uploaded image from external URL`, { paramName, filename: uploadedFilename });
+                      logger.info(`Successfully uploaded image to ComfyUI`, { paramName, filename: uploadedFilename });
                     } catch (error: any) {
                       if (error instanceof NodeOperationError) {
                         throw error;
@@ -535,6 +540,7 @@ export class ComfyUi {
                   }
                 } else {
                   // Get input binary data
+                  logger.info(`Getting binary data from input`, { binaryProperty: value || 'data', paramName });
                   const inputData = this.getInputData(0);
                   const binaryPropertyName = value || 'data';
                   if (!inputData || !inputData[0] || !inputData[0].binary || !inputData[0].binary[binaryPropertyName]) {
@@ -546,15 +552,15 @@ export class ComfyUi {
                   const buffer = Buffer.from(binaryData.data, 'base64');
                   const filename = binaryData.fileName || `upload_${Date.now()}.${binaryData.mimeType.split('/')[1] || 'png'}`;
 
+                  logger.info(`Uploading binary data to ComfyUI`, { filename, size: buffer.length, mimeType: binaryData.mimeType, paramName });
                   // Upload to ComfyUI and get the filename
-                  logger.debug(`Uploading binary data to ComfyUI`, { filename, paramName });
                   const uploadedFilename = await client.uploadImage(buffer, filename);
 
                   // Set the parameter value to the uploaded filename
                   parsedValue = uploadedFilename;
                   workflow[nodeId].inputs[paramName] = parsedValue;
 
-                  logger.debug(`Successfully uploaded binary data`, { paramName, filename: uploadedFilename });
+                  logger.info(`Successfully uploaded binary data`, { paramName, filename: uploadedFilename });
                 }
                 break;
 
@@ -569,6 +575,7 @@ export class ComfyUi {
         }
       }
 
+      logger.info('Executing ComfyUI workflow', { nodeCount: Object.keys(workflow).length, comfyUiUrl });
       const result = await client.executeWorkflow(workflow);
 
       if (!result.success) {
