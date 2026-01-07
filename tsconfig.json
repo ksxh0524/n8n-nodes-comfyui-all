@@ -27,7 +27,6 @@
   },
   "include": [
     "nodes/**/*.ts",
-    "agent-tools/**/*.ts",
     "index.ts"
   ],
   "exclude": [

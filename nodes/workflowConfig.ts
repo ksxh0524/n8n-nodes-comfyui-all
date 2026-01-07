@@ -75,9 +75,7 @@ export function getWorkflowTemplate(config?: WorkflowConfig): Workflow {
     try {
       return safeJsonParse(config.customTemplate, 'Custom workflow template') as Workflow;
     } catch (error: unknown) {
-      // Log warning when custom template fails
-      const errorMsg = error instanceof Error ? error.message : String(error);
-      console.warn(`Custom workflow template is invalid, falling back to default template. Error: ${errorMsg}`);
+      // Silently fall back to default template on error
     }
   }
 

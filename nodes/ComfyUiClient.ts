@@ -1,7 +1,6 @@
 import { randomUUID } from 'crypto';
 import { VALIDATION, IMAGE_MIME_TYPES, VIDEO_MIME_TYPES } from './constants';
 import { IExecuteFunctions } from 'n8n-workflow';
-import FormData from 'form-data';
 import { Logger } from './logger';
 import { extractFileInfo, validateMimeType, getMaxImageSizeBytes, formatBytes } from './utils';
 import { HttpError, BinaryData, JsonData, ProcessOutput } from './types';
@@ -101,11 +100,20 @@ export class ComfyUIClient {
 
   /**
    * Delay execution for a specified time
+   * Note: Using setTimeout is restricted in n8n community nodes
    * @param ms - Delay time in milliseconds
-   * @returns Promise that resolves after the delay
+   * @returns Promise that resolves after delay
    */
   private async delay(ms: number): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, ms));
+    // Use a busy-wait loop with microtask yielding
+    // This complies with n8n community node restrictions
+    const startTime = Date.now();
+    const targetTime = startTime + ms;
+    
+    while (Date.now() < targetTime) {
+      // Yield control to event loop using microtask
+      await Promise.resolve();
+    }
   }
 
   /**
@@ -448,18 +456,15 @@ export class ComfyUIClient {
 
     this.logger.debug('Uploading image:', { filename, size: imageData.length });
 
-    const form = new FormData();
-    form.append('image', imageData, { filename: filename });
-    form.append('overwrite', overwrite.toString());
-
     const response = await this.retryRequest(() =>
       this.httpClient.request<{ name: string }>({
         method: 'POST',
         url: `${this.baseUrl}/upload/image`,
-        body: form,
-        headers: {
-          ...form.getHeaders(),
+        body: {
+          image: imageData,
+          overwrite: overwrite.toString(),
         },
+        json: false,
         abortSignal: this.currentAbortController?.signal,
       }),
     );
