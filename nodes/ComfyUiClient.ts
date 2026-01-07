@@ -1,6 +1,7 @@
 import { randomUUID } from 'crypto';
 import { VALIDATION } from './constants';
 import { IExecuteFunctions } from 'n8n-workflow';
+import FormData from 'form-data';
 
 export interface ComfyUIClientConfig {
   baseUrl: string;
@@ -287,9 +288,7 @@ export class ComfyUIClient {
 
     console.log('[ComfyUI] Uploading image:', { filename, size: imageData.length });
 
-    const FormData = require('form-data');
     const form = new FormData();
-
     form.append('image', imageData, { filename: filename });
     form.append('overwrite', overwrite.toString());
 

@@ -1,8 +1,12 @@
 "use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ComfyUIClient = void 0;
 const crypto_1 = require("crypto");
 const constants_1 = require("./constants");
+const form_data_1 = __importDefault(require("form-data"));
 class ComfyUIClient {
     constructor(config) {
         this.isDestroyed = false;
@@ -209,8 +213,7 @@ class ComfyUIClient {
             throw new Error('Client has been destroyed');
         }
         console.log('[ComfyUI] Uploading image:', { filename, size: imageData.length });
-        const FormData = require('form-data');
-        const form = new FormData();
+        const form = new form_data_1.default();
         form.append('image', imageData, { filename: filename });
         form.append('overwrite', overwrite.toString());
         const response = await this.retryRequest(() => this.helpers.httpRequest({
