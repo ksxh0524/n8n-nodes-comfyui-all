@@ -4,4 +4,5 @@ dist/
 .DS_Store
 test_upload.js
 test-safe-json.ts
-dist/
+coverage/
+*.tsbuildinfo

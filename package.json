@@ -1,6 +1,6 @@
 {
   "name": "n8n-nodes-comfyui-all",
-  "version": "2.2.10",
+  "version": "2.2.11",
   "description": "n8n community nodes for ComfyUI workflow execution with dynamic parameter support",
   "keywords": [
     "n8n-community-node-package",
@@ -20,7 +20,18 @@
     "type": "git",
     "url": "git+https://github.com/ksxh0524/n8n-nodes-comfyui-all.git"
   },
+  "homepage": "https://github.com/ksxh0524/n8n-nodes-comfyui-all#readme",
+  "bugs": {
+    "url": "https://github.com/ksxh0524/n8n-nodes-comfyui-all/issues"
+  },
   "main": "dist/index.js",
+  "exports": {
+    ".": "./dist/index.js",
+    "./package.json": "./package.json"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "scripts": {
     "build": "tsc && cp nodes/ComfyUi/comfyui.svg dist/nodes/ComfyUi/",
     "dev": "tsc --watch",
@@ -28,6 +39,7 @@
     "lint": "eslint nodes package.json",
     "lintfix": "eslint nodes package.json --fix",
     "test": "jest",
+    "test:coverage": "jest --coverage",
     "prepublishOnly": "npm run build && npm run lint -s"
   },
   "files": [
@@ -43,11 +55,11 @@
     ]
   },
   "dependencies": {
-    "@types/axios": "^0.9.36",
     "axios": "^1.13.2",
     "form-data": "^4.0.5"
   },
   "devDependencies": {
+    "@types/axios": "^0.9.36",
     "@types/form-data": "^2.2.1",
     "@types/jest": "^29.5.0",
     "@types/node": "^20.0.0",
