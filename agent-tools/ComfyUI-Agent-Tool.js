@@ -13,6 +13,38 @@
 // 默认配置
 const DEFAULT_COMFYUI_URL = 'http://127.0.0.1:8188';
 
+// 参数提取规则配置
+const PARAM_PATTERNS = {
+  negative: {
+    regex: /negative:\s*([^\n]+)/i,
+    paramKey: 'negative_prompt',
+    parser: (match) => match[1].trim()
+  },
+  size: {
+    regex: /size:\s*(\d+)x(\d+)/i,
+    paramKeys: ['width', 'height'],
+    parser: (match) => ({
+      width: parseInt(match[1]),
+      height: parseInt(match[2])
+    })
+  },
+  steps: {
+    regex: /steps:\s*(\d+)/i,
+    paramKey: 'steps',
+    parser: (match) => parseInt(match[1])
+  },
+  cfg: {
+    regex: /cfg:\s*([\d.]+)/i,
+    paramKey: 'cfg',
+    parser: (match) => parseFloat(match[1])
+  },
+  seed: {
+    regex: /seed:\s*(\d+)/i,
+    paramKey: 'seed',
+    parser: (match) => parseInt(match[1])
+  }
+};
+
 // 示例工作流模板（文本生成图像）
 // 你可以从 ComfyUI 导出你自己的工作流并替换这个模板
 const WORKFLOW_TEMPLATE = {
@@ -76,7 +108,27 @@ const WORKFLOW_TEMPLATE = {
 };
 
 /**
+ * 从查询中提取参数
+ * @param {string} query - 用户查询文本
+ * @param {Object} pattern - 参数模式配置
+ * @returns {Object} 提取的参数和清理后的查询
+ */
+function extractParameter(query, pattern) {
+  const match = query.match(pattern.regex);
+  if (!match) {
+    return { value: null, cleanedQuery: query };
+  }
+
+  const value = pattern.parser(match);
+  const cleanedQuery = query.replace(pattern.regex, '').trim();
+
+  return { value, cleanedQuery };
+}
+
+/**
  * 解析用户输入，提取图像生成参数
+ * @param {string} query - 用户查询文本
+ * @returns {Object} 解析后的参数对象
  */
 function parseInput(query) {
   const params = {
@@ -89,70 +141,160 @@ function parseInput(query) {
     seed: Math.floor(Math.random() * 2147483647)
   };
 
-  // 提取正向提示词（整个 query）
-  params.prompt = query.trim();
+  let currentQuery = query.trim();
 
-  // 提取负向提示词
-  const negativeMatch = query.match(/negative:\s*([^\n]+)/i);
-  if (negativeMatch) {
-    params.negative_prompt = negativeMatch[1].trim();
-    params.prompt = params.prompt.replace(/negative:\s*[^\n]+/i, '').trim();
+  for (const [paramName, pattern] of Object.entries(PARAM_PATTERNS)) {
+    const { value, cleanedQuery } = extractParameter(currentQuery, pattern);
+
+    if (value !== null) {
+      if (pattern.paramKeys) {
+        pattern.paramKeys.forEach((key, index) => {
+          params[key] = value[Object.keys(value)[index]];
+        });
+      } else {
+        params[pattern.paramKey] = value;
+      }
+      currentQuery = cleanedQuery;
+    }
   }
 
-  // 提取尺寸
-  const sizeMatch = query.match(/size:\s*(\d+)x(\d+)/i);
-  if (sizeMatch) {
-    params.width = parseInt(sizeMatch[1]);
-    params.height = parseInt(sizeMatch[2]);
-    params.prompt = params.prompt.replace(/size:\s*\d+x\d+/i, '').trim();
-  }
+  // 清理剩余的参数标记和多余的标点
+  currentQuery = currentQuery
+    .replace(/,\s*,/g, ',') // 移除连续的逗号
+    .replace(/,\s*$/g, '') // 移除末尾的逗号
+    .replace(/^\s*,\s*/g, '') // 移除开头的逗号
+    .replace(/,\s*,\s*/g, ', ') // 移除逗号之间的多余空格
+    .replace(/,\s*$/g, '') // 再次移除末尾的逗号（处理单个逗号情况）
+    .trim();
 
-  // 提取步数
-  const stepsMatch = query.match(/steps:\s*(\d+)/i);
-  if (stepsMatch) {
-    params.steps = parseInt(stepsMatch[1]);
-    params.prompt = params.prompt.replace(/steps:\s*\d+/i, '').trim();
-  }
-
-  // 提取 CFG
-  const cfgMatch = query.match(/cfg:\s*([\d.]+)/i);
-  if (cfgMatch) {
-    params.cfg = parseFloat(cfgMatch[1]);
-    params.prompt = params.prompt.replace(/cfg:\s*[\d.]+/i, '').trim();
-  }
-
-  // 提取种子
-  const seedMatch = query.match(/seed:\s*(\d+)/i);
-  if (seedMatch) {
-    params.seed = parseInt(seedMatch[1]);
-    params.prompt = params.prompt.replace(/seed:\s*\d+/i, '').trim();
-  }
+  params.prompt = currentQuery;
 
   return params;
 }
 
 /**
+ * 根据节点类型查找节点 ID
+ * @param {Object} workflow - 工作流对象
+ * @param {string} classType - 节点类型
+ * @returns {string|null} 节点 ID 或 null
+ */
+function findNodeByClassType(workflow, classType) {
+  for (const nodeId in workflow) {
+    if (workflow[nodeId] && workflow[nodeId].class_type === classType) {
+      return nodeId;
+    }
+  }
+  return null;
+}
+
+/**
  * 更新工作流参数
+ * @param {Object} workflow - ComfyUI 工作流对象
+ * @param {Object} params - 参数对象
+ * @returns {Object} 更新后的工作流
  */
 function updateWorkflow(workflow, params) {
   const updatedWorkflow = JSON.parse(JSON.stringify(workflow));
 
-  // 更新正向提示词
-  updatedWorkflow["6"].inputs.text = params.prompt;
+  // 查找并更新正向和负向提示词节点
+  const clipTextEncodeNodes = [];
+  for (const nodeId in updatedWorkflow) {
+    if (updatedWorkflow[nodeId] && updatedWorkflow[nodeId].class_type === 'CLIPTextEncode') {
+      clipTextEncodeNodes.push(nodeId);
+    }
+  }
 
-  // 更新负向提示词
-  updatedWorkflow["7"].inputs.text = params.negative_prompt;
+  if (clipTextEncodeNodes.length >= 1) {
+    updatedWorkflow[clipTextEncodeNodes[0]].inputs.text = params.prompt;
+  }
+  if (clipTextEncodeNodes.length >= 2) {
+    updatedWorkflow[clipTextEncodeNodes[1]].inputs.text = params.negative_prompt;
+  }
 
-  // 更新图像尺寸
-  updatedWorkflow["5"].inputs.width = params.width;
-  updatedWorkflow["5"].inputs.height = params.height;
+  // 查找并更新图像尺寸节点
+  const latentNodeId = findNodeByClassType(updatedWorkflow, 'EmptyLatentImage') ||
+                      findNodeByClassType(updatedWorkflow, 'EmptySD3LatentImage');
+  if (latentNodeId) {
+    updatedWorkflow[latentNodeId].inputs.width = params.width;
+    updatedWorkflow[latentNodeId].inputs.height = params.height;
+  }
 
-  // 更新采样参数
-  updatedWorkflow["3"].inputs.steps = params.steps;
-  updatedWorkflow["3"].inputs.cfg = params.cfg;
-  updatedWorkflow["3"].inputs.seed = params.seed;
+  // 查找并更新采样参数节点
+  const samplerNodeId = findNodeByClassType(updatedWorkflow, 'KSampler');
+  if (samplerNodeId) {
+    updatedWorkflow[samplerNodeId].inputs.steps = params.steps;
+    updatedWorkflow[samplerNodeId].inputs.cfg = params.cfg;
+    updatedWorkflow[samplerNodeId].inputs.seed = params.seed;
+  }
+
+  // 查找并更新编辑指令节点（用于图片编辑工作流）
+  const primitiveNodeId = findNodeByClassType(updatedWorkflow, 'PrimitiveStringMultiline');
+  if (primitiveNodeId) {
+    updatedWorkflow[primitiveNodeId].inputs.value = params.prompt;
+  }
 
   return updatedWorkflow;
+}
+
+/**
+ * 从输出节点中提取图像信息
+ * @param {Object} outputs - ComfyUI 输出对象
+ * @param {string} url - ComfyUI 服务器 URL
+ * @returns {Array} 图像信息数组
+ */
+function extractImagesFromOutputs(outputs, url) {
+  const images = [];
+
+  for (const nodeId in outputs) {
+    if (!outputs[nodeId] || !outputs[nodeId].images) {
+      continue;
+    }
+
+    const nodeImages = outputs[nodeId].images;
+
+    if (!Array.isArray(nodeImages) || nodeImages.length === 0) {
+      continue;
+    }
+
+    for (const image of nodeImages) {
+      const imageInfo = processImage(image, nodeId, url);
+      if (imageInfo) {
+        images.push(imageInfo);
+      }
+    }
+  }
+
+  return images;
+}
+
+/**
+ * 处理单个图像对象
+ * @param {Object} image - 图像对象
+ * @param {string} nodeId - 节点 ID
+ * @param {string} url - ComfyUI 服务器 URL
+ * @returns {Object|null} 处理后的图像信息或 null
+ */
+function processImage(image, nodeId, url) {
+  if (!image || typeof image !== 'object') {
+    console.warn(`[ComfyUI Tool] Invalid image object in node ${nodeId}`);
+    return null;
+  }
+
+  const filename = image.filename;
+  const subfolder = image.subfolder || '';
+  const type = image.type || 'output';
+
+  if (!filename) {
+    console.warn(`[ComfyUI Tool] Image missing filename in node ${nodeId}`);
+    return null;
+  }
+
+  return {
+    filename: filename,
+    subfolder: subfolder,
+    type: type,
+    url: `${url}/view?filename=${filename}&subfolder=${subfolder}&type=${type}`
+  };
 }
 
 /**
@@ -222,36 +364,8 @@ async function executeComfyUIWorkflow(workflow, comfyUiUrl) {
     if (historyResponse.data && historyResponse.data[promptId]) {
       const outputs = historyResponse.data[promptId].outputs;
 
-      // 提取生成的图像
       if (outputs) {
-        const images = [];
-
-        for (const nodeId in outputs) {
-          if (outputs[nodeId] && outputs[nodeId].images && Array.isArray(outputs[nodeId].images) && outputs[nodeId].images.length > 0) {
-            for (const image of outputs[nodeId].images) {
-              if (!image || typeof image !== 'object') {
-                console.warn(`[ComfyUI Tool] Invalid image object in node ${nodeId}`);
-                continue;
-              }
-
-              const filename = image.filename;
-              const subfolder = image.subfolder || '';
-              const type = image.type || 'output';
-
-              if (!filename) {
-                console.warn(`[ComfyUI Tool] Image missing filename in node ${nodeId}`);
-                continue;
-              }
-
-              images.push({
-                filename: filename,
-                subfolder: subfolder,
-                type: type,
-                url: `${url}/view?filename=${filename}&subfolder=${subfolder}&type=${type}`
-              });
-            }
-          }
-        }
+        const images = extractImagesFromOutputs(outputs, url);
 
         if (images.length === 0) {
           throw new Error('Workflow completed but no images were generated');
