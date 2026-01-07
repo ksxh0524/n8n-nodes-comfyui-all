@@ -122,28 +122,6 @@ export declare class ComfyUi {
                     type: string;
                     default: string;
                     description: string;
-                    options: {
-                        name: string;
-                        value: string;
-                        description: string;
-                    }[];
-                    displayOptions: {
-                        show: {
-                            parameterMode: string[];
-                            type: string[];
-                            imageSource?: undefined;
-                        };
-                    };
-                    placeholder?: undefined;
-                    hint?: undefined;
-                    required?: undefined;
-                    typeOptions?: undefined;
-                } | {
-                    displayName: string;
-                    name: string;
-                    type: string;
-                    default: string;
-                    description: string;
                     placeholder: string;
                     displayOptions: {
                         show: {
@@ -153,8 +131,8 @@ export declare class ComfyUi {
                         };
                     };
                     hint: string;
-                    options?: undefined;
                     required?: undefined;
+                    options?: undefined;
                     typeOptions?: undefined;
                 } | {
                     displayName: string;
@@ -164,9 +142,9 @@ export declare class ComfyUi {
                     description: string;
                     placeholder: string;
                     required: boolean;
-                    options?: undefined;
                     displayOptions?: undefined;
                     hint?: undefined;
+                    options?: undefined;
                     typeOptions?: undefined;
                 } | {
                     displayName: string;
@@ -179,8 +157,8 @@ export declare class ComfyUi {
                         value: string;
                         description: string;
                     }[];
-                    displayOptions?: undefined;
                     placeholder?: undefined;
+                    displayOptions?: undefined;
                     hint?: undefined;
                     required?: undefined;
                     typeOptions?: undefined;
@@ -198,9 +176,9 @@ export declare class ComfyUi {
                             imageSource?: undefined;
                         };
                     };
-                    options?: undefined;
                     hint?: undefined;
                     required?: undefined;
+                    options?: undefined;
                     typeOptions?: undefined;
                 } | {
                     displayName: string;
@@ -219,9 +197,9 @@ export declare class ComfyUi {
                             imageSource?: undefined;
                         };
                     };
-                    options?: undefined;
                     hint?: undefined;
                     required?: undefined;
+                    options?: undefined;
                 } | {
                     displayName: string;
                     name: string;
@@ -250,6 +228,28 @@ export declare class ComfyUi {
                     type: string;
                     default: string;
                     description: string;
+                    options: {
+                        name: string;
+                        value: string;
+                        description: string;
+                    }[];
+                    displayOptions: {
+                        show: {
+                            parameterMode: string[];
+                            type: string[];
+                            imageSource?: undefined;
+                        };
+                    };
+                    placeholder?: undefined;
+                    hint?: undefined;
+                    required?: undefined;
+                    typeOptions?: undefined;
+                } | {
+                    displayName: string;
+                    name: string;
+                    type: string;
+                    default: string;
+                    description: string;
                     placeholder: string;
                     displayOptions: {
                         show: {
@@ -258,9 +258,9 @@ export declare class ComfyUi {
                             imageSource?: undefined;
                         };
                     };
-                    options?: undefined;
                     hint?: undefined;
                     required?: undefined;
+                    options?: undefined;
                     typeOptions?: undefined;
                 } | {
                     displayName: string;
@@ -276,9 +276,9 @@ export declare class ComfyUi {
                             imageSource?: undefined;
                         };
                     };
-                    options?: undefined;
                     hint?: undefined;
                     required?: undefined;
+                    options?: undefined;
                     typeOptions?: undefined;
                 })[];
             }[];

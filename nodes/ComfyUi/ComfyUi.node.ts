@@ -113,31 +113,6 @@ export class ComfyUi {
             name: 'nodeParameter',
             values: [
 											{
-												displayName: 'Image Source',
-												name: 'imageSource',
-												type: 'options',
-												default: 'binary',
-												description: 'Where to get the image from',
-												options: [
-													{
-														name: 'Binary',
-														value: 'binary',
-														description: 'Use binary data from input',
-													},
-													{
-														name: 'URL',
-														value: 'url',
-														description: 'Download from URL',
-													},
-												],
-												displayOptions: {
-													show: {
-														parameterMode: ['single'],
-														type: ['image'],
-													},
-												},
-											},
-											{
 												displayName: 'Image URL',
 												name: 'imageUrl',
 												type: 'string',
@@ -241,6 +216,31 @@ export class ComfyUi {
 												displayOptions: {
 													show: {
 														parameterMode: ['single'],
+													},
+												},
+											},
+											{
+												displayName: 'Image Input Type',
+												name: 'imageSource',
+												type: 'options',
+												default: 'binary',
+												description: 'How to input the image',
+												options: [
+													{
+														name: 'Binary',
+														value: 'binary',
+														description: 'Use binary data from input',
+													},
+													{
+														name: 'URL',
+														value: 'url',
+														description: 'Download from URL',
+													},
+												],
+												displayOptions: {
+													show: {
+														parameterMode: ['single'],
+														type: ['image'],
 													},
 												},
 											},

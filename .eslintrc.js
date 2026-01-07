@@ -14,6 +14,7 @@ module.exports = {
   rules: {
     '@typescript-eslint/no-explicit-any': 'off',
     '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
+    'n8n-nodes-base/node-param-fixed-collection-type-unsorted-items': 'off',
   },
   ignorePatterns: ['package.json', 'nodes/__tests__'],
 };

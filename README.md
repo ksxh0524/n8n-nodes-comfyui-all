@@ -101,7 +101,7 @@ The node supports two methods for uploading images to ComfyUI:
 Upload images from n8n binary data:
 
 - **Type**: `Image`
-- **Image Source**: `Binary`
+- **Image Input Type**: `Binary`
 - **Value**: Binary property name (e.g., `data`, `image`, `file`)
 
 #### Method 2: URL
@@ -109,7 +109,7 @@ Upload images from n8n binary data:
 Download and upload images from a URL:
 
 - **Type**: `Image`
-- **Image Source**: `URL`
+- **Image Input Type**: `URL`
 - **Image URL**: Full URL of the image (e.g., `https://example.com/image.png`)
 
 The node will automatically download the image from the URL and upload it to ComfyUI.
@@ -188,8 +188,8 @@ For detailed AI Agent usage, see [AI-AGENT-USAGE.md](AI-AGENT-USAGE.md).
 | **Node ID** | The node ID in your workflow (e.g., `6`, `13`) |
 | **Parameter Mode** | Single Parameter or Multiple Parameters (JSON) |
 | **Type** | Data type: Text, Number, Boolean, or Image |
-| **Image Source** | (When Type=Image) Binary or URL |
-| **Image URL** | (When Image Source=URL) URL to download image from |
+| **Image Input Type** | (When Type=Image) Binary or URL |
+| **Image URL** | (When Image Input Type=URL) URL to download image from |
 | **Parameter Name** | (Single mode) Parameter name to override |
 | **Parameters JSON** | (Multiple mode) JSON object with parameters |
 | **Value** | Value to set (varies by Type) |
