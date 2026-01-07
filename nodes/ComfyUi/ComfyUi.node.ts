@@ -262,7 +262,7 @@ export class ComfyUi {
 												displayName: 'Value',
 												name: 'value',
 												type: 'string',
-												default: 'data',
+												default: '',
 												description: 'Binary property name from input data (e.g., "data", "image", "file")',
 												placeholder: 'data',
 												displayOptions: {
