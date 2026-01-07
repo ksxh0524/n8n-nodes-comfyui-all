@@ -87,12 +87,13 @@ export class ParameterProcessor {
       }
 
       this.logger.info(`Successfully downloaded image`, { size: imageBuffer.length, url: imageUrl });
-
+      
       let filename = imageUrl.split('/').pop() || generateUniqueFilename('png', 'download');
       if (filename.includes('?')) {
         filename = filename.split('?')[0];
       }
-
+      
+      // Detect image format from URL or use default
       if (!filename.match(/\.(png|jpg|jpeg|webp|gif|bmp)$/i)) {
         filename = generateUniqueFilename('png', 'download');
       } else {
@@ -104,7 +105,7 @@ export class ParameterProcessor {
           filename = generateUniqueFilename('png', 'download');
         }
       }
-
+      
       this.logger.info(`Uploading image to ComfyUI`, { filename, size: imageBuffer.length });
       const uploadedFilename = await uploadImage(imageBuffer, filename);
 
