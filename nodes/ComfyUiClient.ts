@@ -270,104 +270,21 @@ export class ComfyUIClient {
       throw new Error('Client has been destroyed');
     }
 
-    // Detect content type from filename
-    const ext = filename.split('.').pop()?.toLowerCase() || 'png';
-    const contentTypes: Record<string, string> = {
-      'png': 'image/png',
-      'jpg': 'image/jpeg',
-      'jpeg': 'image/jpeg',
-      'webp': 'image/webp',
-      'gif': 'image/gif',
-      'bmp': 'image/bmp',
-    };
-    const contentType = contentTypes[ext] || 'image/png';
+    const response = await this.retryRequest(() =>
+      this.helpers.httpRequest({
+        method: 'POST',
+        url: `${this.baseUrl}/upload/image`,
+        body: {
+          image: imageData,
+          filename: filename,
+          overwrite: overwrite,
+        },
+        json: true,
+        timeout: this.timeout,
+      } as any),
+    );
 
-    try {
-      // Method 1: Try using n8n's body with file object
-      const response = await this.retryRequest(() =>
-        this.helpers.httpRequest({
-          method: 'POST',
-          url: `${this.baseUrl}/upload/image`,
-          body: {
-            image: {
-              value: imageData,
-              options: {
-                filename: filename,
-                contentType: contentType,
-              },
-            },
-            filename: filename,
-            overwrite: overwrite,
-          },
-          timeout: this.timeout,
-        } as any),
-      );
-
-      return response.name;
-    } catch (error: any) {
-      const responseBody = error.response?.data || error.response?.body;
-      console.error('Upload attempt 1 failed. Response:', JSON.stringify(responseBody));
-
-      // Method 2: Try using multipart/form-data explicitly
-      try {
-        const response2 = await this.retryRequest(() =>
-          this.helpers.httpRequest({
-            method: 'POST',
-            url: `${this.baseUrl}/upload/image`,
-            multipart: true,
-            formData: {
-              image: {
-                value: imageData,
-                options: {
-                  filename: filename,
-                  contentType: contentType,
-                },
-              },
-              filename: filename,
-              overwrite: String(overwrite),
-            },
-            timeout: this.timeout,
-          } as any),
-        );
-
-        return response2.name;
-      } catch (error2: any) {
-        const responseBody2 = error2.response?.data || error2.response?.body;
-        console.error('Upload attempt 2 failed. Response:', JSON.stringify(responseBody2));
-
-        // Method 3: Try base64 encoded JSON
-        try {
-          const base64Image = imageData.toString('base64');
-          const response3 = await this.retryRequest(() =>
-            this.helpers.httpRequest({
-              method: 'POST',
-              url: `${this.baseUrl}/upload/image`,
-              body: {
-                image: base64Image,
-                filename: filename,
-                overwrite: overwrite,
-              },
-              json: true,
-              timeout: this.timeout,
-            }),
-          );
-
-          return response3.name;
-        } catch (error3: any) {
-          const responseBody3 = error3.response?.data || error3.response?.body;
-          console.error('Upload attempt 3 failed. Response:', JSON.stringify(responseBody3));
-
-          // All methods failed, throw detailed error
-          throw new Error(`Failed to upload image "${filename}" to ComfyUI after 3 attempts.
-
-Attempt 1 (body with file object): HTTP ${error.response?.statusCode || error.statusCode} - ${JSON.stringify(responseBody)}
-Attempt 2 (multipart/form-data): HTTP ${error2.response?.statusCode || error2.statusCode} - ${JSON.stringify(responseBody2)}
-Attempt 3 (base64 JSON): HTTP ${error3.response?.statusCode || error3.statusCode} - ${JSON.stringify(responseBody3)}
-
-Image info: Size=${imageData.length} bytes, ContentType=${contentType}, Filename=${filename}`);
-        }
-      }
-    }
+    return response.name;
   }
 
   async getSystemInfo(): Promise<Record<string, unknown>> {
