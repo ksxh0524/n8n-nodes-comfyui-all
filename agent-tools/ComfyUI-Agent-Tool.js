@@ -216,14 +216,14 @@ function updateWorkflow(workflow, params) {
   // 查找并更新图像尺寸节点
   const latentNodeId = findNodeByClassType(updatedWorkflow, 'EmptyLatentImage') ||
                       findNodeByClassType(updatedWorkflow, 'EmptySD3LatentImage');
-  if (latentNodeId) {
+  if (latentNodeId && updatedWorkflow[latentNodeId].inputs) {
     updatedWorkflow[latentNodeId].inputs.width = params.width;
     updatedWorkflow[latentNodeId].inputs.height = params.height;
   }
 
   // 查找并更新采样参数节点
   const samplerNodeId = findNodeByClassType(updatedWorkflow, 'KSampler');
-  if (samplerNodeId) {
+  if (samplerNodeId && updatedWorkflow[samplerNodeId].inputs) {
     updatedWorkflow[samplerNodeId].inputs.steps = params.steps;
     updatedWorkflow[samplerNodeId].inputs.cfg = params.cfg;
     updatedWorkflow[samplerNodeId].inputs.seed = params.seed;
@@ -231,7 +231,7 @@ function updateWorkflow(workflow, params) {
 
   // 查找并更新编辑指令节点（用于图片编辑工作流）
   const primitiveNodeId = findNodeByClassType(updatedWorkflow, 'PrimitiveStringMultiline');
-  if (primitiveNodeId) {
+  if (primitiveNodeId && updatedWorkflow[primitiveNodeId].inputs) {
     updatedWorkflow[primitiveNodeId].inputs.value = params.prompt;
   }
 
