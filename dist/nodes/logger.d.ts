@@ -7,7 +7,7 @@ export declare enum LogLevel {
 }
 export declare class Logger {
     private n8nLogger;
-    constructor(n8nLogger: N8nLogger);
+    constructor(n8nLogger?: N8nLogger);
     debug(message: string, ...args: unknown[]): void;
     info(message: string, ...args: unknown[]): void;
     warn(message: string, ...args: unknown[]): void;

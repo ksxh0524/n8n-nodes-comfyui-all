@@ -3,7 +3,7 @@
  * Configuration constants for ComfyUI nodes
  */
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.VIDEO_MIME_TYPES = exports.IMAGE_MIME_TYPES = exports.FILE_PREFIXES = exports.OUTPUT_FORMATS = exports.PRIVATE_IP_PATTERNS = exports.VALIDATION = exports.NodeIds = exports.DEFAULT_FRAMES = exports.DEFAULT_SCHEDULER = exports.DEFAULT_SAMPLER_NAME = exports.DEFAULT_CFG = exports.DEFAULT_STEPS = exports.DEFAULT_IMAGE_EDIT_DENOISE = exports.DEFAULT_DENOISE = exports.DEFAULT_BATCH_SIZE = exports.DEFAULT_IMAGE_HEIGHT = exports.DEFAULT_IMAGE_WIDTH = exports.DEFAULT_MODEL = void 0;
+exports.VIDEO_MIME_TYPES = exports.IMAGE_MIME_TYPES = exports.FILE_PREFIXES = exports.OUTPUT_FORMATS = exports.DEFAULT_OUTPUT_BINARY_KEY = exports.VALIDATION = exports.NodeIds = exports.DEFAULT_FRAMES = exports.DEFAULT_SCHEDULER = exports.DEFAULT_SAMPLER_NAME = exports.DEFAULT_CFG = exports.DEFAULT_STEPS = exports.DEFAULT_IMAGE_EDIT_DENOISE = exports.DEFAULT_DENOISE = exports.DEFAULT_BATCH_SIZE = exports.DEFAULT_IMAGE_HEIGHT = exports.DEFAULT_IMAGE_WIDTH = exports.DEFAULT_MODEL = void 0;
 // Default model configuration
 exports.DEFAULT_MODEL = 'v1-5-pruned-emaonly.ckpt';
 // Image generation defaults
@@ -44,18 +44,13 @@ exports.VALIDATION = {
     POLL_INTERVAL_MS: 1000,
     MAX_RETRIES: 3,
     RETRY_DELAY_MS: 1000,
+    MAX_CONSECUTIVE_ERRORS: 3,
+    MAX_TOTAL_ERRORS: 10,
+    MAX_BACKOFF_DELAY_POLLING: 10000,
+    MAX_BACKOFF_DELAY_RETRY: 5000,
 };
-// Private IP ranges for SSRF protection
-exports.PRIVATE_IP_PATTERNS = [
-    /^127\./, // 127.0.0.0/8 (loopback)
-    /^10\./, // 10.0.0.0/8
-    /^172\.(1[6-9]|2\d|3[0-1])\./, // 172.16.0.0/12
-    /^192\.168\./, // 192.168.0.0/16
-    /^localhost$/i, // localhost
-    /^::1$/, // IPv6 loopback
-    /^fc00:/i, // IPv6 private fc00::/7
-    /^fe80:/i, // IPv6 link-local fe80::/10
-];
+// Default values
+exports.DEFAULT_OUTPUT_BINARY_KEY = 'data';
 // Output formats
 exports.OUTPUT_FORMATS = {
     URL: 'url',

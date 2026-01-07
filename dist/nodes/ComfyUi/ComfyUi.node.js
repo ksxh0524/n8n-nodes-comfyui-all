@@ -8,6 +8,10 @@ const constants_1 = require("../constants");
 const logger_1 = require("../logger");
 class ComfyUi {
     constructor() {
+        /**
+         * Node description for n8n
+         * Defines the node's properties, inputs, outputs, and configuration options
+         */
         this.description = {
             displayName: 'ComfyUI',
             name: 'comfyUi',
@@ -285,12 +289,17 @@ class ComfyUi {
             ],
         };
     }
+    /**
+     * Execute the ComfyUI workflow
+     * @returns Promise containing the execution results with image/video data
+     * @throws {NodeOperationError} If URL validation, workflow validation, or execution fails
+     */
     async execute() {
         const logger = (0, logger_1.createLogger)(this.logger);
         const comfyUiUrl = this.getNodeParameter('comfyUiUrl', 0);
         const workflowJson = this.getNodeParameter('workflowJson', 0);
         const timeout = this.getNodeParameter('timeout', 0);
-        const outputBinaryKey = this.getNodeParameter('outputBinaryKey', 0) || 'data';
+        const outputBinaryKey = this.getNodeParameter('outputBinaryKey', 0) || constants_1.DEFAULT_OUTPUT_BINARY_KEY;
         if (!(0, validation_1.validateUrl)(comfyUiUrl)) {
             throw new n8n_workflow_1.NodeOperationError(this.getNode(), 'Invalid ComfyUI URL. Must be a valid HTTP/HTTPS URL.');
         }
@@ -325,8 +334,8 @@ class ComfyUi {
                     const type = nodeParamConfig.type || 'text';
                     const imageSource = nodeParamConfig.imageSource || 'binary';
                     const value = nodeParamConfig.value || '';
-                    const numberValue = nodeParamConfig.numberValue;
-                    const booleanValue = nodeParamConfig.booleanValue;
+                    const numberValue = nodeParamConfig.numberValue ?? 0;
+                    const booleanValue = nodeParamConfig.booleanValue ?? 'false';
                     const imageUrl = nodeParamConfig.imageUrl || '';
                     if (!nodeId) {
                         throw new n8n_workflow_1.NodeOperationError(this.getNode(), `Node Parameters ${i + 1} is missing Node ID.`);
@@ -340,17 +349,17 @@ class ComfyUi {
                     if (parameterMode === 'multiple' && parametersJson) {
                         let parameters;
                         try {
-                            parameters = JSON.parse(parametersJson);
+                            parameters = (0, validation_1.safeJsonParse)(parametersJson, `Node Parameters ${i + 1}`);
                         }
                         catch (error) {
-                            throw new n8n_workflow_1.NodeOperationError(this.getNode(), `Node Parameters ${i + 1}: Invalid JSON in parameters field: ${error}`);
+                            throw new n8n_workflow_1.NodeOperationError(this.getNode(), `Node Parameters ${i + 1}: ${error.message}`);
                         }
                         if (typeof parameters !== 'object' || parameters === null) {
                             throw new n8n_workflow_1.NodeOperationError(this.getNode(), `Node Parameters ${i + 1}: Parameters must be a JSON object`);
                         }
                         logger.debug(`Applying multiple parameters to node ${nodeId}`, { parameters });
-                        for (const [paramName, value] of Object.entries(parameters)) {
-                            workflow[nodeId].inputs[paramName] = value;
+                        for (const [key, val] of Object.entries(parameters)) {
+                            workflow[nodeId].inputs[key] = val;
                         }
                     }
                     else if (parameterMode === 'single' && paramName) {
@@ -399,6 +408,11 @@ class ComfyUi {
                                         const imageBuffer = Buffer.from(imageResponse);
                                         if (imageBuffer.length === 0) {
                                             throw new n8n_workflow_1.NodeOperationError(this.getNode(), `Node Parameters ${i + 1}: Downloaded image from URL "${imageUrl}" is empty. Please check the URL and try again.`);
+                                        }
+                                        // Validate downloaded image size
+                                        const maxImageSize = constants_1.VALIDATION.MAX_IMAGE_SIZE_MB * 1024 * 1024;
+                                        if (imageBuffer.length > maxImageSize) {
+                                            throw new n8n_workflow_1.NodeOperationError(this.getNode(), `Node Parameters ${i + 1}: Downloaded image size (${Math.round(imageBuffer.length / 1024 / 1024)}MB) exceeds maximum allowed size of ${constants_1.VALIDATION.MAX_IMAGE_SIZE_MB}MB`);
                                         }
                                         logger.info(`Successfully downloaded image`, { size: imageBuffer.length, url: imageUrl });
                                         let filename = imageUrl.split('/').pop() || `download_${Date.now()}.png`;
@@ -453,9 +467,31 @@ TIP: Check the previous node's "Output Binary Key" parameter. It should match "$
                                     if (!binaryData.data || typeof binaryData.data !== 'string') {
                                         throw new n8n_workflow_1.NodeOperationError(this.getNode(), `Node Parameters ${i + 1}: Invalid binary data for property "${binaryPropertyName}". The data field is missing or not a string.`);
                                     }
-                                    const buffer = Buffer.from(binaryData.data, 'base64');
+                                    // Validate base64 string length before decoding
+                                    const base64Data = binaryData.data;
+                                    const maxBase64Length = constants_1.VALIDATION.MAX_IMAGE_SIZE_MB * 1024 * 1024 * 4 / 3; // Base64 is ~33% larger than binary
+                                    if (base64Data.length > maxBase64Length) {
+                                        throw new n8n_workflow_1.NodeOperationError(this.getNode(), `Node Parameters ${i + 1}: Binary data exceeds maximum allowed size of ${constants_1.VALIDATION.MAX_IMAGE_SIZE_MB}MB. ` +
+                                            `Base64 data length: ${Math.round(base64Data.length / 1024 / 1024)}MB (decoded would be ~${Math.round(base64Data.length * 0.75 / 1024 / 1024)}MB)`);
+                                    }
+                                    // Validate MIME type
+                                    if (!binaryData.mimeType || typeof binaryData.mimeType !== 'string') {
+                                        throw new n8n_workflow_1.NodeOperationError(this.getNode(), `Node Parameters ${i + 1}: Invalid or missing MIME type for binary data.`);
+                                    }
+                                    const mimeType = binaryData.mimeType.toLowerCase();
+                                    const allowedMimeTypes = Object.values(constants_1.IMAGE_MIME_TYPES);
+                                    if (!allowedMimeTypes.includes(mimeType)) {
+                                        throw new n8n_workflow_1.NodeOperationError(this.getNode(), `Node Parameters ${i + 1}: Unsupported MIME type "${mimeType}". ` +
+                                            `Allowed types: ${allowedMimeTypes.join(', ')}`);
+                                    }
+                                    const buffer = Buffer.from(base64Data, 'base64');
                                     if (!Buffer.isBuffer(buffer) || buffer.length === 0) {
                                         throw new n8n_workflow_1.NodeOperationError(this.getNode(), `Node Parameters ${i + 1}: Failed to decode binary data for property "${binaryPropertyName}". The data may be corrupted. Buffer length: ${buffer.length}`);
+                                    }
+                                    // Validate decoded buffer size
+                                    const maxBufferSize = constants_1.VALIDATION.MAX_IMAGE_SIZE_MB * 1024 * 1024;
+                                    if (buffer.length > maxBufferSize) {
+                                        throw new n8n_workflow_1.NodeOperationError(this.getNode(), `Node Parameters ${i + 1}: Decoded buffer size (${Math.round(buffer.length / 1024 / 1024)}MB) exceeds maximum allowed size of ${constants_1.VALIDATION.MAX_IMAGE_SIZE_MB}MB`);
                                     }
                                     const filename = binaryData.fileName || `upload_${Date.now()}.${binaryData.mimeType.split('/')[1] || 'png'}`;
                                     logger.info(`Uploading binary data to ComfyUI`, { filename, size: buffer.length, mimeType: binaryData.mimeType, paramName });
@@ -487,7 +523,7 @@ TIP: Check the previous node's "Output Binary Key" parameter. It should match "$
                 logger.error('Workflow execution failed', result.error);
                 throw new n8n_workflow_1.NodeOperationError(this.getNode(), `Failed to execute workflow: ${result.error}`);
             }
-            const { json, binary } = await processResults(result, client, comfyUiUrl, outputBinaryKey);
+            const { json, binary } = await client.processResults(result, outputBinaryKey);
             logger.info('Workflow execution completed successfully', {
                 imageCount: json.imageCount,
                 videoCount: json.videoCount,
@@ -505,87 +541,4 @@ TIP: Check the previous node's "Output Binary Key" parameter. It should match "$
     }
 }
 exports.ComfyUi = ComfyUi;
-async function processResults(result, client, comfyUiUrl, outputBinaryKey = 'data') {
-    const jsonData = {
-        success: true,
-    };
-    if (result.output) {
-        jsonData.data = result.output;
-    }
-    if (result.images && result.images.length > 0) {
-        jsonData.images = result.images;
-        jsonData.imageUrls = result.images.map(img => `${comfyUiUrl}${img}`);
-    }
-    if (result.videos && result.videos.length > 0) {
-        jsonData.videos = result.videos;
-        jsonData.videoUrls = result.videos.map(vid => `${comfyUiUrl}${vid}`);
-    }
-    const binaryData = {};
-    if (result.images && result.images.length > 0) {
-        for (let i = 0; i < result.images.length; i++) {
-            const imagePath = result.images[i];
-            const imageBuffer = await client.getImageBuffer(imagePath);
-            const filenameMatch = imagePath.match(/filename=([^&]+)/);
-            const filename = filenameMatch ? filenameMatch[1] : `image_${i}`;
-            let ext = 'png';
-            const extMatch = filename.match(/\.([^.]+)$/);
-            if (extMatch) {
-                ext = extMatch[1].toLowerCase();
-            }
-            if (!extMatch && imagePath.includes('type=')) {
-                const typeMatch = imagePath.match(/type=([^&]+)/);
-                if (typeMatch) {
-                    const type = typeMatch[1].toLowerCase();
-                    const mimeMap = {
-                        'input': 'png',
-                        'output': 'png',
-                        'temp': 'png',
-                    };
-                    ext = mimeMap[type] || 'png';
-                }
-            }
-            const mimeType = constants_1.IMAGE_MIME_TYPES[ext] || 'image/png';
-            const binaryKey = i === 0 ? outputBinaryKey : `image_${i}`;
-            binaryData[binaryKey] = {
-                data: imageBuffer.toString('base64'),
-                mimeType: mimeType,
-                fileName: filename,
-            };
-        }
-        jsonData.imageCount = result.images.length;
-    }
-    if (result.videos && result.videos.length > 0) {
-        for (let i = 0; i < result.videos.length; i++) {
-            const videoPath = result.videos[i];
-            const typeMatch = videoPath.match(/type=([^&]+)/);
-            let videoType = 'mp4';
-            if (typeMatch) {
-                videoType = typeMatch[1].toLowerCase();
-            }
-            const filenameMatch = videoPath.match(/filename=([^&]+)/);
-            let filename = filenameMatch ? filenameMatch[1] : `video_${i}.mp4`;
-            const extMatch = filename.match(/\.([^.]+)$/);
-            if (extMatch) {
-                videoType = extMatch[1].toLowerCase();
-            }
-            else {
-                filename = `${filename}.${videoType}`;
-            }
-            const mimeType = constants_1.VIDEO_MIME_TYPES[videoType] || 'video/mp4';
-            const videoBuffer = await client.getVideoBuffer(videoPath);
-            const hasImages = result.images && result.images.length > 0;
-            const binaryKey = (!hasImages && i === 0) ? outputBinaryKey : `video_${i}`;
-            binaryData[binaryKey] = {
-                data: videoBuffer.toString('base64'),
-                mimeType: mimeType,
-                fileName: filename,
-            };
-        }
-        jsonData.videoCount = result.videos.length;
-    }
-    return {
-        json: jsonData,
-        binary: binaryData,
-    };
-}
 //# sourceMappingURL=ComfyUi.node.js.map

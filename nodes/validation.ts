@@ -1,5 +1,62 @@
 import { ValidationResult } from './types';
 
+const MAX_JSON_SIZE = 1 * 1024 * 1024;
+const MAX_JSON_DEPTH = 100;
+
+function getObjectDepth(obj: any, currentDepth = 1): number {
+  if (typeof obj !== 'object' || obj === null) {
+    return currentDepth;
+  }
+  
+  if (Array.isArray(obj)) {
+    let maxDepth = currentDepth;
+    for (const item of obj) {
+      const depth = getObjectDepth(item, currentDepth + 1);
+      if (depth > maxDepth) {
+        maxDepth = depth;
+      }
+    }
+    return maxDepth;
+  }
+  
+  let maxDepth = currentDepth;
+  for (const value of Object.values(obj)) {
+    const depth = getObjectDepth(value, currentDepth + 1);
+    if (depth > maxDepth) {
+      maxDepth = depth;
+    }
+  }
+  return maxDepth;
+}
+
+export function safeJsonParse(jsonString: string, context: string = 'JSON'): any {
+  if (typeof jsonString !== 'string') {
+    throw new Error(`${context} must be a string`);
+  }
+
+  if (jsonString.length === 0) {
+    throw new Error(`${context} is empty`);
+  }
+
+  if (jsonString.length > MAX_JSON_SIZE) {
+    throw new Error(`${context} exceeds maximum size of ${MAX_JSON_SIZE / 1024 / 1024}MB (actual: ${(jsonString.length / 1024 / 1024).toFixed(2)}MB)`);
+  }
+
+  let parsed;
+  try {
+    parsed = JSON.parse(jsonString);
+  } catch (error: any) {
+    throw new Error(`${context} is invalid: ${error.message}`);
+  }
+
+  const depth = getObjectDepth(parsed);
+  if (depth > MAX_JSON_DEPTH) {
+    throw new Error(`${context} exceeds maximum depth of ${MAX_JSON_DEPTH} (actual: ${depth})`);
+  }
+
+  return parsed;
+}
+
 /**
  * Validate if a string is a valid HTTP/HTTPS URL
  */
@@ -25,11 +82,11 @@ export function validateComfyUIWorkflow(workflowJson: string): ValidationResult 
 
   let workflow: any;
   try {
-    workflow = JSON.parse(workflowJson);
+    workflow = safeJsonParse(workflowJson, 'Workflow JSON');
   } catch (error: any) {
     return {
       valid: false,
-      error: `Invalid JSON: ${error.message}`,
+      error: error.message,
     };
   }
 

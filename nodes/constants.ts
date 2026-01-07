@@ -47,19 +47,14 @@ export const VALIDATION = {
   POLL_INTERVAL_MS: 1000,
   MAX_RETRIES: 3,
   RETRY_DELAY_MS: 1000,
+  MAX_CONSECUTIVE_ERRORS: 3,
+  MAX_TOTAL_ERRORS: 10,
+  MAX_BACKOFF_DELAY_POLLING: 10000,
+  MAX_BACKOFF_DELAY_RETRY: 5000,
 } as const;
 
-// Private IP ranges for SSRF protection
-export const PRIVATE_IP_PATTERNS = [
-  /^127\./,                           // 127.0.0.0/8 (loopback)
-  /^10\./,                            // 10.0.0.0/8
-  /^172\.(1[6-9]|2\d|3[0-1])\./,     // 172.16.0.0/12
-  /^192\.168\./,                      // 192.168.0.0/16
-  /^localhost$/i,                     // localhost
-  /^::1$/,                            // IPv6 loopback
-  /^fc00:/i,                          // IPv6 private fc00::/7
-  /^fe80:/i,                          // IPv6 link-local fe80::/10
-];
+// Default values
+export const DEFAULT_OUTPUT_BINARY_KEY = 'data';
 
 // Output formats
 export const OUTPUT_FORMATS = {

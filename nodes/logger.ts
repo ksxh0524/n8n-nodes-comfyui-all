@@ -7,11 +7,22 @@ export enum LogLevel {
   ERROR = 'error',
 }
 
+/**
+ * Null Logger implementation for cases where no logger is provided
+ * Implements a no-op logger that silently discards all log messages
+ */
+class NullLogger implements N8nLogger {
+  debug(_message: string): void {}
+  info(_message: string): void {}
+  warn(_message: string): void {}
+  error(_message: string): void {}
+}
+
 export class Logger {
   private n8nLogger: N8nLogger;
 
-  constructor(n8nLogger: N8nLogger) {
-    this.n8nLogger = n8nLogger;
+  constructor(n8nLogger?: N8nLogger) {
+    this.n8nLogger = n8nLogger || new NullLogger();
   }
 
   debug(message: string, ...args: unknown[]): void {

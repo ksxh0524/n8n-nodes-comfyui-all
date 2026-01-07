@@ -24,5 +24,61 @@ export interface NodeParameterConfig {
 export interface NodeParameterInput {
     nodeParameter: NodeParameterConfig[];
 }
+export interface WorkflowNode {
+    inputs: Record<string, any>;
+    class_type: string;
+}
+export interface PromptResponse {
+    prompt_id: string;
+}
+export interface HistoryResponse {
+    [key: string]: {
+        outputs?: any;
+        status?: {
+            completed: boolean;
+        };
+    };
+}
+export interface Workflow {
+    [nodeId: string]: WorkflowNode;
+}
+export interface ImageInfo {
+    filename: string;
+    subfolder: string;
+    type: string;
+    url: string;
+}
+export interface ParsedParameters {
+    prompt: string;
+    negative_prompt: string;
+    width: number;
+    height: number;
+    steps: number;
+    cfg: number;
+    seed: number;
+}
+export interface ParameterPattern {
+    regex: RegExp;
+    paramKey?: string;
+    paramKeys?: string[];
+    parser: (match: RegExpMatchArray) => any;
+}
+export interface ToolInputOptions {
+    comfyUiUrl?: string;
+}
+export interface ToolResult {
+    success: boolean;
+    message?: string;
+    error?: string;
+    data?: {
+        prompt: string;
+        images: string[];
+        parameters: ParsedParameters;
+    };
+}
+export interface ParameterExtractionResult {
+    value: any;
+    cleanedQuery: string;
+}
 export type { ComfyUIClientConfig, WorkflowExecution, WorkflowResult } from './ComfyUiClient';
 //# sourceMappingURL=types.d.ts.map

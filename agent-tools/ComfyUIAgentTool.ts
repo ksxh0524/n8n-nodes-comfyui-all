@@ -11,6 +11,19 @@
  */
 
 import axios from 'axios';
+import {
+  WorkflowNode,
+  PromptResponse,
+  HistoryResponse,
+  Workflow,
+  ImageInfo,
+  ParsedParameters,
+  ParameterPattern,
+  ToolInputOptions,
+  ToolResult,
+  ParameterExtractionResult
+} from '../nodes/types';
+import { getWorkflowTemplate, WorkflowConfig } from '../nodes/workflowConfig';
 
 // Logger interface and implementation
 interface ILogger {
@@ -69,73 +82,6 @@ const POLLING_INTERVAL_MS = 1000; // Polling interval of 1 second
 // Request timeout configuration
 const QUEUE_REQUEST_TIMEOUT = 30000; // Queue request timeout 30 seconds
 const HISTORY_REQUEST_TIMEOUT = 10000; // History request timeout 10 seconds
-
-// Type definitions
-interface WorkflowNode {
-  inputs: Record<string, any>;
-  class_type: string;
-}
-
-interface PromptResponse {
-  prompt_id: string;
-}
-
-interface HistoryResponse {
-  [key: string]: {
-    outputs?: any;
-    status?: {
-      completed: boolean;
-    };
-  };
-}
-
-interface Workflow {
-  [nodeId: string]: WorkflowNode;
-}
-
-interface ImageInfo {
-  filename: string;
-  subfolder: string;
-  type: string;
-  url: string;
-}
-
-interface ParsedParameters {
-  prompt: string;
-  negative_prompt: string;
-  width: number;
-  height: number;
-  steps: number;
-  cfg: number;
-  seed: number;
-}
-
-interface ParameterPattern {
-  regex: RegExp;
-  paramKey?: string;
-  paramKeys?: string[];
-  parser: (match: RegExpMatchArray) => any;
-}
-
-interface ToolInputOptions {
-  comfyUiUrl?: string;
-}
-
-interface ToolResult {
-  success: boolean;
-  message?: string;
-  error?: string;
-  data?: {
-    prompt: string;
-    images: string[];
-    parameters: ParsedParameters;
-  };
-}
-
-interface ParameterExtractionResult {
-  value: any;
-  cleanedQuery: string;
-}
 
 /**
  * Promise-based delay function
@@ -295,10 +241,7 @@ function parseInput(query: string): ParsedParameters {
   currentQuery = currentQuery
     .replace(/，\s*，/g, '，') // Remove consecutive Chinese commas
     .replace(/,\s*,/g, ',') // Remove consecutive English commas
-    .replace(/[，,]\s*$/g, '') // Remove trailing Chinese or English comma
-    .replace(/^\s*[，,]\s*/g, '') // Remove leading Chinese or English comma
     .replace(/[，,]\s*[，,]/g, ' ') // Remove extra spaces between commas
-    .replace(/[，,]\s*$/g, '') // Remove trailing comma again
     .replace(/^\s*[，,]+/g, '') // Remove all leading commas
     .replace(/[，,]+\s*$/g, '') // Remove all trailing commas
     .trim();
@@ -329,7 +272,7 @@ function findNodeByClassType(workflow: Workflow, classType: string): string | nu
  * @returns Updated workflow
  */
 function updateWorkflow(workflow: Workflow, params: ParsedParameters): Workflow {
-  const updatedWorkflow: Workflow = JSON.parse(JSON.stringify(workflow));
+  const updatedWorkflow: Workflow = structuredClone(workflow);
 
   // Find and update positive and negative prompt nodes
   const clipTextEncodeNodes: string[] = [];

@@ -32,6 +32,7 @@ export declare class ComfyUIClient {
     private clientId;
     private maxRetries;
     private isDestroyed;
+    private abortController;
     constructor(config: ComfyUIClientConfig);
     /**
      * Cancel any ongoing request and clean up resources
@@ -45,15 +46,69 @@ export declare class ComfyUIClient {
      * Check if the client has been destroyed
      */
     isClientDestroyed(): boolean;
+    /**
+     * Generate a unique client ID
+     * @returns Unique client ID string
+     */
     private generateClientId;
+    /**
+     * Delay execution for a specified time
+     * @param ms - Delay time in milliseconds
+     * @returns Promise that resolves after the delay
+     */
     private delay;
+    /**
+     * Retry a request with exponential backoff
+     * @param requestFn - Function that returns a Promise to retry
+     * @param retries - Maximum number of retry attempts
+     * @returns Promise that resolves when the request succeeds
+     * @throws Error if all retry attempts fail
+     */
     private retryRequest;
+    /**
+     * Execute a ComfyUI workflow
+     * @param workflow - Workflow object containing nodes and their configurations
+     * @returns Promise containing workflow execution result
+     */
     executeWorkflow(workflow: Record<string, WorkflowNode>): Promise<WorkflowResult>;
+    /**
+     * Prepare workflow prompt for ComfyUI API
+     * @param workflow - Workflow object containing nodes
+     * @returns Formatted prompt object
+     */
     private preparePrompt;
+    /**
+     * Wait for workflow execution to complete
+     * @param promptId - Prompt ID from ComfyUI
+     * @param maxWaitTime - Maximum time to wait in milliseconds
+     * @returns Promise containing workflow execution result
+     */
     private waitForExecution;
+    /**
+     * Extract image and video results from workflow outputs
+     * @param outputs - Raw output data from ComfyUI
+     * @returns WorkflowResult with extracted images and videos
+     */
     private extractResults;
+    /**
+     * Get execution history from ComfyUI
+     * @param limit - Maximum number of history entries to retrieve
+     * @returns Promise containing history data
+     */
     getHistory(limit?: number): Promise<Record<string, unknown>>;
+    /**
+     * Upload an image to ComfyUI server
+     * @param imageData - Image data as Buffer
+     * @param filename - Name of the file to upload
+     * @param overwrite - Whether to overwrite existing file
+     * @returns Promise containing the uploaded filename
+     * @throws Error if image data is invalid or upload fails
+     */
     uploadImage(imageData: Buffer, filename: string, overwrite?: boolean): Promise<string>;
+    /**
+     * Get system information from ComfyUI server
+     * @returns Promise containing system stats
+     */
     getSystemInfo(): Promise<Record<string, unknown>>;
     getImageBuffer(imagePath: string): Promise<Buffer>;
     getVideoBuffer(videoPath: string): Promise<Buffer>;
@@ -61,5 +116,15 @@ export declare class ComfyUIClient {
      * Format error message with additional context
      */
     private formatErrorMessage;
+    /**
+     * Process workflow execution results and format them for n8n output
+     * @param result - Workflow execution result
+     * @param outputBinaryKey - Property name for the first output binary data
+     * @returns Processed result with json and binary data
+     */
+    processResults(result: WorkflowResult, outputBinaryKey?: string): Promise<{
+        json: Record<string, any>;
+        binary: Record<string, any>;
+    }>;
 }
 //# sourceMappingURL=ComfyUiClient.d.ts.map

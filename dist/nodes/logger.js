@@ -9,9 +9,19 @@ var LogLevel;
     LogLevel["WARN"] = "warn";
     LogLevel["ERROR"] = "error";
 })(LogLevel || (exports.LogLevel = LogLevel = {}));
+/**
+ * Null Logger implementation for cases where no logger is provided
+ * Implements a no-op logger that silently discards all log messages
+ */
+class NullLogger {
+    debug(_message) { }
+    info(_message) { }
+    warn(_message) { }
+    error(_message) { }
+}
 class Logger {
     constructor(n8nLogger) {
-        this.n8nLogger = n8nLogger;
+        this.n8nLogger = n8nLogger || new NullLogger();
     }
     debug(message, ...args) {
         if (args.length > 0) {

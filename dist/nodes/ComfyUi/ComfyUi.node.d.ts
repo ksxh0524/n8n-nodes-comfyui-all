@@ -1,5 +1,9 @@
 import { IExecuteFunctions, INodeExecutionData } from 'n8n-workflow';
 export declare class ComfyUi {
+    /**
+     * Node description for n8n
+     * Defines the node's properties, inputs, outputs, and configuration options
+     */
     description: {
         displayName: string;
         name: string;
@@ -258,6 +262,11 @@ export declare class ComfyUi {
             maxValue?: undefined;
         })[];
     };
+    /**
+     * Execute the ComfyUI workflow
+     * @returns Promise containing the execution results with image/video data
+     * @throws {NodeOperationError} If URL validation, workflow validation, or execution fails
+     */
     execute(this: IExecuteFunctions): Promise<INodeExecutionData[][]>;
 }
 //# sourceMappingURL=ComfyUi.node.d.ts.map

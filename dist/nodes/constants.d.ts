@@ -35,8 +35,12 @@ export declare const VALIDATION: {
     readonly POLL_INTERVAL_MS: 1000;
     readonly MAX_RETRIES: 3;
     readonly RETRY_DELAY_MS: 1000;
+    readonly MAX_CONSECUTIVE_ERRORS: 3;
+    readonly MAX_TOTAL_ERRORS: 10;
+    readonly MAX_BACKOFF_DELAY_POLLING: 10000;
+    readonly MAX_BACKOFF_DELAY_RETRY: 5000;
 };
-export declare const PRIVATE_IP_PATTERNS: RegExp[];
+export declare const DEFAULT_OUTPUT_BINARY_KEY = "data";
 export declare const OUTPUT_FORMATS: {
     readonly URL: "url";
     readonly BASE64: "base64";
