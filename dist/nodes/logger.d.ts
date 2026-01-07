@@ -1,8 +1,4 @@
-/**
- * Simple logger for ComfyUI nodes
- * In n8n context, console statements are not allowed
- * This logger is disabled for community nodes
- */
+import { Logger as N8nLogger } from 'n8n-workflow';
 export declare enum LogLevel {
     DEBUG = "debug",
     INFO = "info",
@@ -10,19 +6,13 @@ export declare enum LogLevel {
     ERROR = "error"
 }
 export declare class Logger {
-    private context;
-    constructor(context: string, _enabled?: boolean);
-    debug(_message: string, ..._args: unknown[]): void;
-    info(_message: string, ..._args: unknown[]): void;
-    warn(_message: string, ..._args: unknown[]): void;
-    error(_message: string, _error?: Error | unknown, ..._args: unknown[]): void;
-    /**
-     * Create a child logger with additional context
-     */
-    child(additionalContext: string): Logger;
+    private n8nLogger;
+    constructor(n8nLogger: N8nLogger);
+    debug(message: string, ...args: unknown[]): void;
+    info(message: string, ...args: unknown[]): void;
+    warn(message: string, ...args: unknown[]): void;
+    error(message: string, error?: Error | unknown, ...args: unknown[]): void;
+    child(_additionalContext: string): Logger;
 }
-/**
- * Create a logger instance
- */
-export declare function createLogger(context: string, _enabled?: boolean): Logger;
+export declare function createLogger(n8nLogger: N8nLogger): Logger;
 //# sourceMappingURL=logger.d.ts.map

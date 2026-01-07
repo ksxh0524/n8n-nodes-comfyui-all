@@ -7,10 +7,12 @@ exports.ComfyUIClient = void 0;
 const crypto_1 = require("crypto");
 const constants_1 = require("./constants");
 const form_data_1 = __importDefault(require("form-data"));
+const logger_1 = require("./logger");
 class ComfyUIClient {
     constructor(config) {
         this.isDestroyed = false;
         this.helpers = config.helpers;
+        this.logger = config.logger || new logger_1.Logger({ debug: () => { }, info: () => { }, warn: () => { }, error: () => { } });
         this.baseUrl = config.baseUrl;
         this.timeout = config.timeout || constants_1.VALIDATION.REQUEST_TIMEOUT_MS;
         this.clientId = config.clientId || this.generateClientId();
@@ -69,8 +71,7 @@ class ComfyUIClient {
                 prompt,
                 client_id: this.clientId,
             };
-            // Debug: Log the request body
-            console.log('[ComfyUI] Sending workflow to ComfyUI:', JSON.stringify(requestBody, null, 2));
+            this.logger.debug('Sending workflow to ComfyUI:', JSON.stringify(requestBody, null, 2));
             const response = await this.retryRequest(() => this.helpers.httpRequest({
                 method: 'POST',
                 url: `${this.baseUrl}/prompt`,
@@ -78,7 +79,7 @@ class ComfyUIClient {
                 body: requestBody,
                 timeout: this.timeout,
             }));
-            console.log('[ComfyUI] Response from ComfyUI:', JSON.stringify(response, null, 2));
+            this.logger.debug('Response from ComfyUI:', JSON.stringify(response, null, 2));
             if (response.prompt_id) {
                 return await this.waitForExecution(response.prompt_id);
             }
@@ -88,8 +89,8 @@ class ComfyUIClient {
             };
         }
         catch (error) {
-            console.error('[ComfyUI] Workflow execution error:', error);
-            console.error('[ComfyUI] Error details:', {
+            this.logger.error('Workflow execution error:', error);
+            this.logger.error('Error details:', {
                 message: error.message,
                 statusCode: error.response?.statusCode || error.statusCode,
                 statusMessage: error.response?.statusMessage || error.statusMessage,
@@ -212,7 +213,7 @@ class ComfyUIClient {
         if (this.isDestroyed) {
             throw new Error('Client has been destroyed');
         }
-        console.log('[ComfyUI] Uploading image:', { filename, size: imageData.length });
+        this.logger.debug('Uploading image:', { filename, size: imageData.length });
         const form = new form_data_1.default();
         form.append('image', imageData, { filename: filename });
         form.append('overwrite', overwrite.toString());
@@ -225,7 +226,7 @@ class ComfyUIClient {
             },
             timeout: this.timeout,
         }));
-        console.log('[ComfyUI] Upload response:', response);
+        this.logger.debug('Upload response:', response);
         return response.name;
     }
     async getSystemInfo() {

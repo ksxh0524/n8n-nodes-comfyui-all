@@ -1,4 +1,5 @@
 import { IExecuteFunctions } from 'n8n-workflow';
+import { Logger } from './logger';
 export interface ComfyUIClientConfig {
     baseUrl: string;
     clientId?: string;
@@ -6,6 +7,7 @@ export interface ComfyUIClientConfig {
     maxRetries?: number;
     retryDelay?: number;
     helpers: IExecuteFunctions['helpers'];
+    logger?: Logger;
 }
 export interface WorkflowNode {
     inputs?: Record<string, unknown>;
@@ -24,6 +26,7 @@ export interface WorkflowResult {
 }
 export declare class ComfyUIClient {
     private helpers;
+    private logger;
     private baseUrl;
     private timeout;
     private clientId;

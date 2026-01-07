@@ -1,59 +1,125 @@
 /**
  * ComfyUI Agent Tool - Custom Code Tool for n8n AI Agent
  *
- * 这个工具允许 AI Agent 直接调用 ComfyUI API 生成图像
+ * This tool allows AI Agents to directly call ComfyUI API to generate images
  *
- * 使用方法：
- * 1. 在 n8n 中创建一个 "Custom Code Tool" 节点
- * 2. 将此代码复制到 JavaScript 代码框中
- * 3. 在 Description 中填写：Generates images using ComfyUI. Use this tool when the user asks to create, generate, or make images.
- * 4. 将此工具添加到 AI Agent 节点的 tools 列表中
+ * Usage:
+ * 1. Create a "Custom Code Tool" node in n8n
+ * 2. Copy this code into the JavaScript code box
+ * 3. Fill in the Description: Generates images using ComfyUI. Use this tool when the user asks to create, generate, or make images.
+ * 4. Add this tool to the tools list of the AI Agent node
  */
 
-// 默认配置
+import axios from 'axios';
+
+// Default configuration
 const DEFAULT_COMFYUI_URL = 'http://127.0.0.1:8188';
 
-// 参数默认值
+// Parameter default values
 const DEFAULT_NEGATIVE_PROMPT = 'ugly, blurry, low quality, distorted';
 const DEFAULT_WIDTH = 512;
 const DEFAULT_HEIGHT = 512;
 const DEFAULT_STEPS = 20;
 const DEFAULT_CFG = 8;
 
-// 随机种子最大值（32位有符号整数最大值）
+// Maximum random seed value (32-bit signed integer max value)
 const MAX_SEED_VALUE = 2147483647;
 
-// 轮询配置
-const POLLING_MAX_ATTEMPTS = 120; // 最多等待 2 分钟（120 秒）
-const POLLING_INTERVAL_MS = 1000; // 轮询间隔 1 秒
+// Polling configuration
+const POLLING_MAX_ATTEMPTS = 120; // Maximum wait time of 2 minutes (120 seconds)
+const POLLING_INTERVAL_MS = 1000; // Polling interval of 1 second
 
-// 请求超时配置
-const QUEUE_REQUEST_TIMEOUT = 30000; // 队列请求超时 30 秒
-const HISTORY_REQUEST_TIMEOUT = 10000; // 历史记录请求超时 10 秒
+// Request timeout configuration
+const QUEUE_REQUEST_TIMEOUT = 30000; // Queue request timeout 30 seconds
+const HISTORY_REQUEST_TIMEOUT = 10000; // History request timeout 10 seconds
 
-// 导入 axios（在文件顶部导入，避免在函数内部重复 require）
-const axios = require('axios');
+// Type definitions
+interface WorkflowNode {
+  inputs: Record<string, any>;
+  class_type: string;
+}
+
+interface PromptResponse {
+  prompt_id: string;
+}
+
+interface HistoryResponse {
+  [key: string]: {
+    outputs?: any;
+    status?: {
+      completed: boolean;
+    };
+  };
+}
+
+interface Workflow {
+  [nodeId: string]: WorkflowNode;
+}
+
+interface ImageInfo {
+  filename: string;
+  subfolder: string;
+  type: string;
+  url: string;
+}
+
+interface ParsedParameters {
+  prompt: string;
+  negative_prompt: string;
+  width: number;
+  height: number;
+  steps: number;
+  cfg: number;
+  seed: number;
+}
+
+interface ParameterPattern {
+  regex: RegExp;
+  paramKey?: string;
+  paramKeys?: string[];
+  parser: (match: RegExpMatchArray) => any;
+}
+
+interface ToolInputOptions {
+  comfyUiUrl?: string;
+}
+
+interface ToolResult {
+  success: boolean;
+  message?: string;
+  error?: string;
+  data?: {
+    prompt: string;
+    images: string[];
+    parameters: ParsedParameters;
+  };
+}
+
+interface ParameterExtractionResult {
+  value: any;
+  cleanedQuery: string;
+}
 
 /**
- * Promise-based 延迟函数
- * @param {number} ms - 延迟时间（毫秒）
- * @returns {Promise} Promise 对象
+ * Promise-based delay function
+ * @param ms - Delay time in milliseconds
+ * @returns Promise object
  */
-function delay(ms) {
+function delay(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-// 参数提取规则配置
-const PARAM_PATTERNS = {
+// Parameter extraction rules configuration
+const PARAM_PATTERNS: Record<string, ParameterPattern> = {
   negative: {
     regex: /negative:\s*([^\n]+)/i,
     paramKey: 'negative_prompt',
-    parser: (match) => match[1].trim()
+    parser: (match: RegExpMatchArray) => match[1].trim()
   },
   size: {
     regex: /size:\s*(\d+)x(\d+)/i,
     paramKeys: ['width', 'height'],
-    parser: (match) => ({
+    parser: (match: RegExpMatchArray) => ({
       width: parseInt(match[1]),
       height: parseInt(match[2])
     })
@@ -61,23 +127,23 @@ const PARAM_PATTERNS = {
   steps: {
     regex: /steps:\s*(\d+)/i,
     paramKey: 'steps',
-    parser: (match) => parseInt(match[1])
+    parser: (match: RegExpMatchArray) => parseInt(match[1])
   },
   cfg: {
     regex: /cfg:\s*([\d.]+)/i,
     paramKey: 'cfg',
-    parser: (match) => parseFloat(match[1])
+    parser: (match: RegExpMatchArray) => parseFloat(match[1])
   },
   seed: {
     regex: /seed:\s*(\d+)/i,
     paramKey: 'seed',
-    parser: (match) => parseInt(match[1])
+    parser: (match: RegExpMatchArray) => parseInt(match[1])
   }
 };
 
-// 示例工作流模板（文本生成图像）
-// 你可以从 ComfyUI 导出你自己的工作流并替换这个模板
-const WORKFLOW_TEMPLATE = {
+// Example workflow template (text to image generation)
+// You can export your own workflow from ComfyUI and replace this template
+const WORKFLOW_TEMPLATE: Workflow = {
   "3": {
     "inputs": {
       "seed": 0,
@@ -138,12 +204,12 @@ const WORKFLOW_TEMPLATE = {
 };
 
 /**
- * 从查询中提取参数
- * @param {string} query - 用户查询文本
- * @param {Object} pattern - 参数模式配置
- * @returns {Object} 提取的参数和清理后的查询
+ * Extract parameter from query
+ * @param query - User query text
+ * @param pattern - Parameter pattern configuration
+ * @returns Extracted parameter and cleaned query
  */
-function extractParameter(query, pattern) {
+function extractParameter(query: string, pattern: ParameterPattern): ParameterExtractionResult {
   const match = query.match(pattern.regex);
   if (!match) {
     return { value: null, cleanedQuery: query };
@@ -156,12 +222,12 @@ function extractParameter(query, pattern) {
 }
 
 /**
- * 解析用户输入，提取图像生成参数
- * @param {string} query - 用户查询文本
- * @returns {Object} 解析后的参数对象
+ * Parse user input to extract image generation parameters
+ * @param query - User query text
+ * @returns Parsed parameters object
  */
-function parseInput(query) {
-  const params = {
+function parseInput(query: string): ParsedParameters {
+  const params: ParsedParameters = {
     prompt: '',
     negative_prompt: DEFAULT_NEGATIVE_PROMPT,
     width: DEFAULT_WIDTH,
@@ -173,31 +239,31 @@ function parseInput(query) {
 
   let currentQuery = query.trim();
 
-  for (const [paramName, pattern] of Object.entries(PARAM_PATTERNS)) {
+  for (const [, pattern] of Object.entries(PARAM_PATTERNS)) {
     const { value, cleanedQuery } = extractParameter(currentQuery, pattern);
 
     if (value !== null) {
       if (pattern.paramKeys) {
         pattern.paramKeys.forEach((key, index) => {
-          params[key] = value[Object.keys(value)[index]];
+          (params as any)[key] = value[Object.keys(value)[index]];
         });
-      } else {
-        params[pattern.paramKey] = value;
+      } else if (pattern.paramKey) {
+        (params as any)[pattern.paramKey] = value;
       }
       currentQuery = cleanedQuery;
     }
   }
 
-  // 清理剩余的参数标记和多余的标点
+  // Clean up remaining parameter markers and extra punctuation
   currentQuery = currentQuery
-    .replace(/，\s*，/g, '，') // 移除连续的中文逗号
-    .replace(/,\s*,/g, ',') // 移除连续的英文逗号
-    .replace(/[，,]\s*$/g, '') // 移除末尾的中文或英文逗号
-    .replace(/^\s*[，,]\s*/g, '') // 移除开头的中文或英文逗号
-    .replace(/[，,]\s*[，,]/g, ' ') // 移除逗号之间的多余空格
-    .replace(/[，,]\s*$/g, '') // 再次移除末尾的逗号
-    .replace(/^\s*[，,]+/g, '') // 移除开头的所有逗号
-    .replace(/[，,]+\s*$/g, '') // 移除末尾的所有逗号
+    .replace(/，\s*，/g, '，') // Remove consecutive Chinese commas
+    .replace(/,\s*,/g, ',') // Remove consecutive English commas
+    .replace(/[，,]\s*$/g, '') // Remove trailing Chinese or English comma
+    .replace(/^\s*[，,]\s*/g, '') // Remove leading Chinese or English comma
+    .replace(/[，,]\s*[，,]/g, ' ') // Remove extra spaces between commas
+    .replace(/[，,]\s*$/g, '') // Remove trailing comma again
+    .replace(/^\s*[，,]+/g, '') // Remove all leading commas
+    .replace(/[，,]+\s*$/g, '') // Remove all trailing commas
     .trim();
   params.prompt = currentQuery;
 
@@ -205,12 +271,12 @@ function parseInput(query) {
 }
 
 /**
- * 根据节点类型查找节点 ID
- * @param {Object} workflow - 工作流对象
- * @param {string} classType - 节点类型
- * @returns {string|null} 节点 ID 或 null
+ * Find node ID by node type
+ * @param workflow - Workflow object
+ * @param classType - Node type
+ * @returns Node ID or null
  */
-function findNodeByClassType(workflow, classType) {
+function findNodeByClassType(workflow: Workflow, classType: string): string | null {
   for (const nodeId in workflow) {
     if (workflow[nodeId] && workflow[nodeId].class_type === classType) {
       return nodeId;
@@ -220,16 +286,16 @@ function findNodeByClassType(workflow, classType) {
 }
 
 /**
- * 更新工作流参数
- * @param {Object} workflow - ComfyUI 工作流对象
- * @param {Object} params - 参数对象
- * @returns {Object} 更新后的工作流
+ * Update workflow parameters
+ * @param workflow - ComfyUI workflow object
+ * @param params - Parameters object
+ * @returns Updated workflow
  */
-function updateWorkflow(workflow, params) {
-  const updatedWorkflow = JSON.parse(JSON.stringify(workflow));
+function updateWorkflow(workflow: Workflow, params: ParsedParameters): Workflow {
+  const updatedWorkflow: Workflow = JSON.parse(JSON.stringify(workflow));
 
-  // 查找并更新正向和负向提示词节点
-  const clipTextEncodeNodes = [];
+  // Find and update positive and negative prompt nodes
+  const clipTextEncodeNodes: string[] = [];
   for (const nodeId in updatedWorkflow) {
     if (updatedWorkflow[nodeId] && updatedWorkflow[nodeId].class_type === 'CLIPTextEncode') {
       clipTextEncodeNodes.push(nodeId);
@@ -243,7 +309,7 @@ function updateWorkflow(workflow, params) {
     updatedWorkflow[clipTextEncodeNodes[1]].inputs.text = params.negative_prompt;
   }
 
-  // 查找并更新图像尺寸节点
+  // Find and update image size node
   const latentNodeId = findNodeByClassType(updatedWorkflow, 'EmptyLatentImage') ||
                       findNodeByClassType(updatedWorkflow, 'EmptySD3LatentImage');
   if (latentNodeId && updatedWorkflow[latentNodeId].inputs) {
@@ -251,7 +317,7 @@ function updateWorkflow(workflow, params) {
     updatedWorkflow[latentNodeId].inputs.height = params.height;
   }
 
-  // 查找并更新采样参数节点
+  // Find and update sampling parameters node
   const samplerNodeId = findNodeByClassType(updatedWorkflow, 'KSampler');
   if (samplerNodeId && updatedWorkflow[samplerNodeId].inputs) {
     updatedWorkflow[samplerNodeId].inputs.steps = params.steps;
@@ -259,7 +325,7 @@ function updateWorkflow(workflow, params) {
     updatedWorkflow[samplerNodeId].inputs.seed = params.seed;
   }
 
-  // 查找并更新编辑指令节点（用于图片编辑工作流）
+  // Find and update edit instruction node (for image editing workflows)
   const primitiveNodeId = findNodeByClassType(updatedWorkflow, 'PrimitiveStringMultiline');
   if (primitiveNodeId && updatedWorkflow[primitiveNodeId].inputs) {
     updatedWorkflow[primitiveNodeId].inputs.value = params.prompt;
@@ -269,13 +335,13 @@ function updateWorkflow(workflow, params) {
 }
 
 /**
- * 从输出节点中提取图像信息
- * @param {Object} outputs - ComfyUI 输出对象
- * @param {string} url - ComfyUI 服务器 URL
- * @returns {Array} 图像信息数组
+ * Extract image information from output nodes
+ * @param outputs - ComfyUI output object
+ * @param url - ComfyUI server URL
+ * @returns Array of image information
  */
-function extractImagesFromOutputs(outputs, url) {
-  const images = [];
+function extractImagesFromOutputs(outputs: any, url: string): ImageInfo[] {
+  const images: ImageInfo[] = [];
 
   for (const nodeId in outputs) {
     if (!outputs[nodeId] || !outputs[nodeId].images) {
@@ -300,13 +366,13 @@ function extractImagesFromOutputs(outputs, url) {
 }
 
 /**
- * 处理单个图像对象
- * @param {Object} image - 图像对象
- * @param {string} nodeId - 节点 ID
- * @param {string} url - ComfyUI 服务器 URL
- * @returns {Object|null} 处理后的图像信息或 null
+ * Process single image object
+ * @param image - Image object
+ * @param nodeId - Node ID
+ * @param url - ComfyUI server URL
+ * @returns Processed image information or null
  */
-function processImage(image, nodeId, url) {
+function processImage(image: any, nodeId: string, url: string): ImageInfo | null {
   if (!image || typeof image !== 'object') {
     console.warn(`[ComfyUI Tool] Invalid image object in node ${nodeId}`);
     return null;
@@ -330,22 +396,26 @@ function processImage(image, nodeId, url) {
 }
 
 /**
- * 执行 ComfyUI 工作流
- * @param {Object} workflow - ComfyUI 工作流对象
- * @param {string} comfyUiUrl - ComfyUI 服务器 URL
+ * Execute ComfyUI workflow
+ * @param workflow - ComfyUI workflow object
+ * @param comfyUiUrl - ComfyUI server URL
  */
-async function executeComfyUIWorkflow(workflow, comfyUiUrl) {
+async function executeComfyUIWorkflow(workflow: Workflow, comfyUiUrl?: string): Promise<{
+  success: boolean;
+  prompt_id: string;
+  images: ImageInfo[];
+}> {
   const url = comfyUiUrl || DEFAULT_COMFYUI_URL;
 
-  // 1. 队列提示词
+  // 1. Queue prompt
   let promptResponse;
   try {
-    promptResponse = await axios.post(`${url}/prompt`, {
+    promptResponse = await axios.post<PromptResponse>(`${url}/prompt`, {
       prompt: workflow
     }, {
       timeout: QUEUE_REQUEST_TIMEOUT
     });
-  } catch (error) {
+  } catch (error: any) {
     if (error.code === 'ECONNREFUSED') {
       throw new Error(`Failed to connect to ComfyUI server at ${url}. Please check if the server is running.`);
     } else if (error.code === 'ETIMEDOUT' || error.code === 'ECONNABORTED') {
@@ -364,19 +434,19 @@ async function executeComfyUIWorkflow(workflow, comfyUiUrl) {
   const promptId = promptResponse.data.prompt_id;
   console.log(`[ComfyUI Tool] Workflow queued with ID: ${promptId}`);
 
-  // 2. 轮询结果
+  // 2. Poll for results
   let attempts = 0;
 
   while (attempts < POLLING_MAX_ATTEMPTS) {
     await delay(POLLING_INTERVAL_MS);
 
-    // 检查历史记录
+    // Check history
     let historyResponse;
     try {
-      historyResponse = await axios.get(`${url}/history/${promptId}`, {
+      historyResponse = await axios.get<HistoryResponse>(`${url}/history/${promptId}`, {
         timeout: HISTORY_REQUEST_TIMEOUT
       });
-    } catch (error) {
+    } catch (error: any) {
       if (error.code === 'ECONNREFUSED') {
         throw new Error(`Lost connection to ComfyUI server at ${url}.`);
       } else if (error.code === 'ETIMEDOUT' || error.code === 'ECONNABORTED') {
@@ -415,12 +485,12 @@ async function executeComfyUIWorkflow(workflow, comfyUiUrl) {
 }
 
 /**
- * 主函数：处理工具调用
- * @param {string} query - 用户查询文本
- * @param {Object} options - 可选配置参数
- * @param {string} options.comfyUiUrl - ComfyUI 服务器 URL
+ * Main function: Handle tool invocation
+ * @param query - User query text
+ * @param options - Optional configuration parameters
+ * @param options.comfyUiUrl - ComfyUI server URL
  */
-async function handleToolInput(query, options = {}) {
+export async function handleToolInput(query: string, options: ToolInputOptions = {}): Promise<ToolResult> {
   try {
     const { comfyUiUrl } = options;
     console.log(`[ComfyUI Tool] Received query: ${query}`);
@@ -428,19 +498,19 @@ async function handleToolInput(query, options = {}) {
       console.log(`[ComfyUI Tool] Using ComfyUI URL: ${comfyUiUrl}`);
     }
 
-    // 解析输入参数
+    // Parse input parameters
     const params = parseInput(query);
     console.log('[ComfyUI Tool] Parsed parameters:', JSON.stringify(params, null, 2));
 
-    // 更新工作流
+    // Update workflow
     const workflow = updateWorkflow(WORKFLOW_TEMPLATE, params);
 
-    // 执行工作流
+    // Execute workflow
     const result = await executeComfyUIWorkflow(workflow, comfyUiUrl);
 
     console.log(`[ComfyUI Tool] Generated ${result.images.length} image(s)`);
 
-    // 返回结果
+    // Return result
     return {
       success: true,
       message: `Successfully generated ${result.images.length} image(s) with prompt: "${params.prompt}"`,
@@ -451,7 +521,7 @@ async function handleToolInput(query, options = {}) {
       }
     };
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('[ComfyUI Tool] Error:', error.message);
 
     return {
@@ -462,8 +532,8 @@ async function handleToolInput(query, options = {}) {
   }
 }
 
-// ==================== n8n 集成 ====================
-// 在 n8n Custom Code Tool 中，使用下面的代码：
+// ==================== n8n Integration ====================
+// In n8n Custom Code Tool, use the following code:
 
 // for (const item of items) {
 //   const query = item.json.query || item.json.text || '';
@@ -472,5 +542,11 @@ async function handleToolInput(query, options = {}) {
 //   return result;
 // }
 
-// 导出供测试使用
-module.exports = { handleToolInput, parseInput, updateWorkflow };
+// Export functions for testing
+export {
+  parseInput,
+  updateWorkflow,
+  findNodeByClassType,
+  extractImagesFromOutputs,
+  processImage
+};

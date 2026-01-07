@@ -1,6 +1,6 @@
 {
   "name": "n8n-nodes-comfyui-all",
-  "version": "2.2.9",
+  "version": "2.2.10",
   "description": "n8n community nodes for ComfyUI workflow execution with dynamic parameter support",
   "keywords": [
     "n8n-community-node-package",
@@ -43,6 +43,8 @@
     ]
   },
   "dependencies": {
+    "@types/axios": "^0.9.36",
+    "axios": "^1.13.2",
     "form-data": "^4.0.5"
   },
   "devDependencies": {

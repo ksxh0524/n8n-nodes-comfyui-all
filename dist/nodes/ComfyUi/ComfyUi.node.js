@@ -6,7 +6,6 @@ const ComfyUiClient_1 = require("../ComfyUiClient");
 const validation_1 = require("../validation");
 const constants_1 = require("../constants");
 const logger_1 = require("../logger");
-const logger = (0, logger_1.createLogger)('ComfyUi');
 class ComfyUi {
     constructor() {
         this.description = {
@@ -287,6 +286,7 @@ class ComfyUi {
         };
     }
     async execute() {
+        const logger = (0, logger_1.createLogger)(this.logger);
         const comfyUiUrl = this.getNodeParameter('comfyUiUrl', 0);
         const workflowJson = this.getNodeParameter('workflowJson', 0);
         const timeout = this.getNodeParameter('timeout', 0);
@@ -309,6 +309,7 @@ class ComfyUi {
             baseUrl: comfyUiUrl,
             timeout: timeout * 1000,
             helpers: this.helpers,
+            logger: logger,
         });
         logger.info('Starting ComfyUI workflow execution', { url: comfyUiUrl, timeout });
         try {

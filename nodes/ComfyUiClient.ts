@@ -2,6 +2,7 @@ import { randomUUID } from 'crypto';
 import { VALIDATION } from './constants';
 import { IExecuteFunctions } from 'n8n-workflow';
 import FormData from 'form-data';
+import { Logger } from './logger';
 
 export interface ComfyUIClientConfig {
   baseUrl: string;
@@ -10,6 +11,7 @@ export interface ComfyUIClientConfig {
   maxRetries?: number;
   retryDelay?: number;
   helpers: IExecuteFunctions['helpers'];
+  logger?: Logger;
 }
 
 export interface WorkflowNode {
@@ -32,6 +34,7 @@ export interface WorkflowResult {
 
 export class ComfyUIClient {
   private helpers: IExecuteFunctions['helpers'];
+  private logger: Logger;
   private baseUrl: string;
   private timeout: number;
   private clientId: string;
@@ -40,6 +43,7 @@ export class ComfyUIClient {
 
   constructor(config: ComfyUIClientConfig) {
     this.helpers = config.helpers;
+    this.logger = config.logger || new Logger({ debug: () => {}, info: () => {}, warn: () => {}, error: () => {} } as any);
     this.baseUrl = config.baseUrl;
     this.timeout = config.timeout || VALIDATION.REQUEST_TIMEOUT_MS;
     this.clientId = config.clientId || this.generateClientId();
@@ -113,8 +117,7 @@ export class ComfyUIClient {
         client_id: this.clientId,
       };
 
-      // Debug: Log the request body
-      console.log('[ComfyUI] Sending workflow to ComfyUI:', JSON.stringify(requestBody, null, 2));
+      this.logger.debug('Sending workflow to ComfyUI:', JSON.stringify(requestBody, null, 2));
 
       const response = await this.retryRequest(() =>
         this.helpers.httpRequest({
@@ -126,7 +129,7 @@ export class ComfyUIClient {
         }),
       );
 
-      console.log('[ComfyUI] Response from ComfyUI:', JSON.stringify(response, null, 2));
+      this.logger.debug('Response from ComfyUI:', JSON.stringify(response, null, 2));
 
       if (response.prompt_id) {
         return await this.waitForExecution(response.prompt_id);
@@ -137,8 +140,8 @@ export class ComfyUIClient {
         error: 'Failed to execute workflow: No prompt_id returned',
       };
     } catch (error: any) {
-      console.error('[ComfyUI] Workflow execution error:', error);
-      console.error('[ComfyUI] Error details:', {
+      this.logger.error('Workflow execution error:', error);
+      this.logger.error('Error details:', {
         message: error.message,
         statusCode: error.response?.statusCode || error.statusCode,
         statusMessage: error.response?.statusMessage || error.statusMessage,
@@ -286,7 +289,7 @@ export class ComfyUIClient {
       throw new Error('Client has been destroyed');
     }
 
-    console.log('[ComfyUI] Uploading image:', { filename, size: imageData.length });
+    this.logger.debug('Uploading image:', { filename, size: imageData.length });
 
     const form = new FormData();
     form.append('image', imageData, { filename: filename });
@@ -304,7 +307,7 @@ export class ComfyUIClient {
       }),
     );
 
-    console.log('[ComfyUI] Upload response:', response);
+    this.logger.debug('Upload response:', response);
 
     return response.name;
   }

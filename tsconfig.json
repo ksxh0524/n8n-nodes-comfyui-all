@@ -26,20 +26,14 @@
     "noFallthroughCasesInSwitch": true
   },
   "include": [
-    "nodes/ComfyUi/**/*.ts",
-    "nodes/ComfyUiClient.ts",
-    "nodes/types.ts",
-    "nodes/constants.ts",
-    "nodes/workflow-builder.ts",
-    "nodes/workflow-parser.ts",
-    "nodes/validation.ts",
-    "nodes/logger.ts",
+    "nodes/**/*.ts",
+    "agent-tools/**/*.ts",
     "index.ts"
   ],
   "exclude": [
     "node_modules",
     "dist",
-    "nodes/ComfyUiTool",
-    "nodes/__tests__"
+    "nodes/__tests__",
+    "**/*.js"
   ]
 }

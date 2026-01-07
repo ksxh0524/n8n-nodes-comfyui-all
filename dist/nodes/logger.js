@@ -1,9 +1,4 @@
 "use strict";
-/**
- * Simple logger for ComfyUI nodes
- * In n8n context, console statements are not allowed
- * This logger is disabled for community nodes
- */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.Logger = exports.LogLevel = void 0;
 exports.createLogger = createLogger;
@@ -15,33 +10,65 @@ var LogLevel;
     LogLevel["ERROR"] = "error";
 })(LogLevel || (exports.LogLevel = LogLevel = {}));
 class Logger {
-    constructor(context, _enabled = false) {
-        this.context = context;
+    constructor(n8nLogger) {
+        this.n8nLogger = n8nLogger;
     }
-    debug(_message, ..._args) {
-        // Logging disabled for n8n community nodes
+    debug(message, ...args) {
+        if (args.length > 0) {
+            this.n8nLogger.debug(message, { args });
+        }
+        else {
+            this.n8nLogger.debug(message);
+        }
     }
-    info(_message, ..._args) {
-        // Logging disabled for n8n community nodes
+    info(message, ...args) {
+        if (args.length > 0) {
+            this.n8nLogger.info(message, { args });
+        }
+        else {
+            this.n8nLogger.info(message);
+        }
     }
-    warn(_message, ..._args) {
-        // Logging disabled for n8n community nodes
+    warn(message, ...args) {
+        if (args.length > 0) {
+            this.n8nLogger.warn(message, { args });
+        }
+        else {
+            this.n8nLogger.warn(message);
+        }
     }
-    error(_message, _error, ..._args) {
-        // Logging disabled for n8n community nodes
+    error(message, error, ...args) {
+        if (error instanceof Error) {
+            if (args.length > 0) {
+                this.n8nLogger.error(message, { error: error.message, stack: error.stack, args });
+            }
+            else {
+                this.n8nLogger.error(message, { error: error.message, stack: error.stack });
+            }
+        }
+        else if (error !== undefined) {
+            if (args.length > 0) {
+                this.n8nLogger.error(message, { error, args });
+            }
+            else {
+                this.n8nLogger.error(message, { error });
+            }
+        }
+        else {
+            if (args.length > 0) {
+                this.n8nLogger.error(message, { args });
+            }
+            else {
+                this.n8nLogger.error(message);
+            }
+        }
     }
-    /**
-     * Create a child logger with additional context
-     */
-    child(additionalContext) {
-        return new Logger(`${this.context}:${additionalContext}`, false);
+    child(_additionalContext) {
+        return new Logger(this.n8nLogger);
     }
 }
 exports.Logger = Logger;
-/**
- * Create a logger instance
- */
-function createLogger(context, _enabled = false) {
-    return new Logger(context, false);
+function createLogger(n8nLogger) {
+    return new Logger(n8nLogger);
 }
 //# sourceMappingURL=logger.js.map

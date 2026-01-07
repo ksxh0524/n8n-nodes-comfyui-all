@@ -11,8 +11,6 @@ import { NodeParameterInput } from '../types';
 import { IMAGE_MIME_TYPES, VIDEO_MIME_TYPES } from '../constants';
 import { createLogger } from '../logger';
 
-const logger = createLogger('ComfyUi');
-
 export class ComfyUi {
   description = {
     displayName: 'ComfyUI',
@@ -292,6 +290,7 @@ export class ComfyUi {
   };
 
   async execute(this: IExecuteFunctions): Promise<INodeExecutionData[][]> {
+    const logger = createLogger(this.logger);
     const comfyUiUrl = this.getNodeParameter('comfyUiUrl', 0) as string;
     const workflowJson = this.getNodeParameter('workflowJson', 0) as string;
     const timeout = this.getNodeParameter('timeout', 0) as number;
@@ -317,6 +316,7 @@ export class ComfyUi {
       baseUrl: comfyUiUrl,
       timeout: timeout * 1000,
       helpers: this.helpers,
+      logger: logger,
     });
 
     logger.info('Starting ComfyUI workflow execution', { url: comfyUiUrl, timeout });
