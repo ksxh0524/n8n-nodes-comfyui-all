@@ -31,6 +31,18 @@ const POLLING_INTERVAL_MS = 1000; // 轮询间隔 1 秒
 const QUEUE_REQUEST_TIMEOUT = 30000; // 队列请求超时 30 秒
 const HISTORY_REQUEST_TIMEOUT = 10000; // 历史记录请求超时 10 秒
 
+// 导入 axios（在文件顶部导入，避免在函数内部重复 require）
+const axios = require('axios');
+
+/**
+ * Promise-based 延迟函数
+ * @param {number} ms - 延迟时间（毫秒）
+ * @returns {Promise} Promise 对象
+ */
+function delay(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 // 参数提取规则配置
 const PARAM_PATTERNS = {
   negative: {
@@ -323,8 +335,6 @@ function processImage(image, nodeId, url) {
  * @param {string} comfyUiUrl - ComfyUI 服务器 URL
  */
 async function executeComfyUIWorkflow(workflow, comfyUiUrl) {
-  const axios = require('axios');
-
   const url = comfyUiUrl || DEFAULT_COMFYUI_URL;
 
   // 1. 队列提示词
@@ -358,7 +368,7 @@ async function executeComfyUIWorkflow(workflow, comfyUiUrl) {
   let attempts = 0;
 
   while (attempts < POLLING_MAX_ATTEMPTS) {
-    await new Promise(resolve => setTimeout(resolve, POLLING_INTERVAL_MS));
+    await delay(POLLING_INTERVAL_MS);
 
     // 检查历史记录
     let historyResponse;
