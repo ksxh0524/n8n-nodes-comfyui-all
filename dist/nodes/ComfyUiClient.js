@@ -197,15 +197,18 @@ class ComfyUIClient {
         if (this.isDestroyed) {
             throw new Error('Client has been destroyed');
         }
+        const FormData = require('form-data');
+        const form = new FormData();
+        form.append('image', imageData);
+        form.append('filename', filename);
+        form.append('overwrite', String(overwrite));
         const response = await this.retryRequest(() => this.helpers.httpRequest({
             method: 'POST',
             url: `${this.baseUrl}/upload/image`,
-            body: {
-                image: imageData,
-                filename: filename,
-                overwrite: overwrite,
+            body: form,
+            headers: {
+                ...form.getHeaders(),
             },
-            json: true,
             timeout: this.timeout,
         }));
         return response.name;
