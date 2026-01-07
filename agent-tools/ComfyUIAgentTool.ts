@@ -12,6 +12,43 @@
 
 import axios from 'axios';
 
+// Logger interface and implementation
+interface ILogger {
+  debug(message: string, ...args: any[]): void;
+  info(message: string, ...args: any[]): void;
+  warn(message: string, ...args: any[]): void;
+  error(message: string, ...args: any[]): void;
+}
+
+class ConsoleLogger implements ILogger {
+  private prefix: string;
+
+  constructor(prefix: string = '[ComfyUI Tool]') {
+    this.prefix = prefix;
+  }
+
+  debug(message: string, ...args: any[]): void {
+    if (process.env.NODE_ENV === 'development' || process.env.DEBUG) {
+      console.log(`${this.prefix} ${message}`, ...args);
+    }
+  }
+
+  info(message: string, ...args: any[]): void {
+    console.log(`${this.prefix} ${message}`, ...args);
+  }
+
+  warn(message: string, ...args: any[]): void {
+    console.warn(`${this.prefix} ${message}`, ...args);
+  }
+
+  error(message: string, ...args: any[]): void {
+    console.error(`${this.prefix} ${message}`, ...args);
+  }
+}
+
+// Create logger instance
+const logger = new ConsoleLogger('[ComfyUI Tool]');
+
 // Default configuration
 const DEFAULT_COMFYUI_URL = 'http://127.0.0.1:8188';
 
@@ -374,7 +411,7 @@ function extractImagesFromOutputs(outputs: any, url: string): ImageInfo[] {
  */
 function processImage(image: any, nodeId: string, url: string): ImageInfo | null {
   if (!image || typeof image !== 'object') {
-    console.warn(`[ComfyUI Tool] Invalid image object in node ${nodeId}`);
+    logger.warn(`Invalid image object in node ${nodeId}`);
     return null;
   }
 
@@ -383,7 +420,7 @@ function processImage(image: any, nodeId: string, url: string): ImageInfo | null
   const type = image.type || 'output';
 
   if (!filename) {
-    console.warn(`[ComfyUI Tool] Image missing filename in node ${nodeId}`);
+    logger.warn(`Image missing filename in node ${nodeId}`);
     return null;
   }
 
@@ -432,7 +469,7 @@ async function executeComfyUIWorkflow(workflow: Workflow, comfyUiUrl?: string): 
   }
 
   const promptId = promptResponse.data.prompt_id;
-  console.log(`[ComfyUI Tool] Workflow queued with ID: ${promptId}`);
+  logger.info(`Workflow queued with ID: ${promptId}`);
 
   // 2. Poll for results
   let attempts = 0;
@@ -450,11 +487,11 @@ async function executeComfyUIWorkflow(workflow: Workflow, comfyUiUrl?: string): 
       if (error.code === 'ECONNREFUSED') {
         throw new Error(`Lost connection to ComfyUI server at ${url}.`);
       } else if (error.code === 'ETIMEDOUT' || error.code === 'ECONNABORTED') {
-        console.warn(`[ComfyUI Tool] Timeout checking history (attempt ${attempts + 1}/${POLLING_MAX_ATTEMPTS})`);
+        logger.warn(`Timeout checking history (attempt ${attempts + 1}/${POLLING_MAX_ATTEMPTS})`);
         attempts++;
         continue;
       } else {
-        console.warn(`[ComfyUI Tool] Error checking history: ${error.message}`);
+        logger.warn(`Error checking history: ${error.message}`);
         attempts++;
         continue;
       }
@@ -493,14 +530,14 @@ async function executeComfyUIWorkflow(workflow: Workflow, comfyUiUrl?: string): 
 export async function handleToolInput(query: string, options: ToolInputOptions = {}): Promise<ToolResult> {
   try {
     const { comfyUiUrl } = options;
-    console.log(`[ComfyUI Tool] Received query: ${query}`);
+    logger.info(`Received query: ${query}`);
     if (comfyUiUrl) {
-      console.log(`[ComfyUI Tool] Using ComfyUI URL: ${comfyUiUrl}`);
+      logger.info(`Using ComfyUI URL: ${comfyUiUrl}`);
     }
 
     // Parse input parameters
     const params = parseInput(query);
-    console.log('[ComfyUI Tool] Parsed parameters:', JSON.stringify(params, null, 2));
+    logger.debug('Parsed parameters:', JSON.stringify(params, null, 2));
 
     // Update workflow
     const workflow = updateWorkflow(WORKFLOW_TEMPLATE, params);
@@ -508,7 +545,7 @@ export async function handleToolInput(query: string, options: ToolInputOptions =
     // Execute workflow
     const result = await executeComfyUIWorkflow(workflow, comfyUiUrl);
 
-    console.log(`[ComfyUI Tool] Generated ${result.images.length} image(s)`);
+    logger.info(`Generated ${result.images.length} image(s)`);
 
     // Return result
     return {
@@ -522,7 +559,7 @@ export async function handleToolInput(query: string, options: ToolInputOptions =
     };
 
   } catch (error: any) {
-    console.error('[ComfyUI Tool] Error:', error.message);
+    logger.error('Error:', error.message);
 
     return {
       success: false,
