@@ -1,4 +1,5 @@
-import { Workflow } from './types';
+import { Workflow, WorkflowConfig } from './types';
+import { safeJsonParse } from './validation';
 
 /**
  * Default workflow template for text-to-image generation
@@ -65,24 +66,18 @@ export const DEFAULT_WORKFLOW_TEMPLATE: Workflow = {
 };
 
 /**
- * Workflow configuration options
- */
-export interface WorkflowConfig {
-  template?: Workflow;
-  customTemplate?: string;
-}
-
-/**
  * Get workflow template based on configuration
  * @param config - Workflow configuration
  * @returns Workflow template
+ * @throws Error if custom template is invalid JSON
  */
 export function getWorkflowTemplate(config?: WorkflowConfig): Workflow {
   if (config?.customTemplate) {
     try {
-      return JSON.parse(config.customTemplate) as Workflow;
-    } catch (error) {
-      console.warn('Failed to parse custom workflow template, using default');
+      return safeJsonParse(config.customTemplate, 'Custom workflow template');
+    } catch (error: unknown) {
+      // If custom template is invalid, fall back to default
+      // Error is already logged by safeJsonParse
     }
   }
 

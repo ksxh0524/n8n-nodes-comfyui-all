@@ -9,6 +9,7 @@ import { validateUrl, validateComfyUIWorkflow, safeJsonParse } from '../validati
 import { NodeParameterInput } from '../types';
 import { VALIDATION, IMAGE_MIME_TYPES, DEFAULT_OUTPUT_BINARY_KEY } from '../constants';
 import { createLogger } from '../logger';
+import { validateFilename, generateUniqueFilename } from '../utils';
 
 export class ComfyUi {
   /**
@@ -315,7 +316,7 @@ export class ComfyUi {
 
     let workflow;
     try {
-      workflow = JSON.parse(workflowJson);
+      workflow = safeJsonParse(workflowJson, 'Workflow JSON');
     } catch (error) {
       throw new NodeOperationError(this.getNode(), `Failed to parse workflow JSON: ${error}. Please ensure the JSON is valid.`);
     }
@@ -334,8 +335,7 @@ export class ComfyUi {
       if (nodeParametersInput && nodeParametersInput.nodeParameter && Array.isArray(nodeParametersInput.nodeParameter)) {
         logger.debug(`Processing ${nodeParametersInput.nodeParameter.length} node parameter overrides`);
 
-          for (let i = 0; i < nodeParametersInput.nodeParameter.length; i++) {
-          const nodeParamConfig = nodeParametersInput.nodeParameter[i];
+        for (const [i, nodeParamConfig] of nodeParametersInput.nodeParameter.entries()) {
           const nodeId = nodeParamConfig.nodeId;
           const parameterMode = nodeParamConfig.parameterMode || 'single';
           const parametersJson = nodeParamConfig.parametersJson;
@@ -453,7 +453,14 @@ export class ComfyUi {
                     }
 
                     if (!filename.match(/\.(png|jpg|jpeg|webp|gif|bmp)$/i)) {
-                      filename = `download_${Date.now()}.png`;
+                      filename = generateUniqueFilename('png', 'download');
+                    } else {
+                      try {
+                        filename = validateFilename(filename);
+                      } catch (error: any) {
+                        logger.warn(`Invalid filename "${filename}", generating unique filename`, { error: error.message });
+                        filename = generateUniqueFilename('png', 'download');
+                      }
                     }
 
                     logger.info(`Uploading image to ComfyUI`, { filename, size: imageBuffer.length });
@@ -534,13 +541,15 @@ TIP: Check the previous node's "Output Binary Key" parameter. It should match "$
                     );
                   }
 
+                  const ext = binaryData.mimeType.split('/')[1] || 'png';
+                  const filename = binaryData.fileName || generateUniqueFilename(ext, 'upload');
+
                   const buffer = Buffer.from(base64Data, 'base64');
 
                   if (!Buffer.isBuffer(buffer) || buffer.length === 0) {
                     throw new NodeOperationError(this.getNode(), `Node Parameters ${i + 1}: Failed to decode binary data for property "${binaryPropertyName}". The data may be corrupted. Buffer length: ${buffer.length}`);
                   }
 
-                  // Validate decoded buffer size
                   const maxBufferSize = VALIDATION.MAX_IMAGE_SIZE_MB * 1024 * 1024;
                   if (buffer.length > maxBufferSize) {
                     throw new NodeOperationError(
@@ -548,8 +557,6 @@ TIP: Check the previous node's "Output Binary Key" parameter. It should match "$
                       `Node Parameters ${i + 1}: Decoded buffer size (${Math.round(buffer.length / 1024 / 1024)}MB) exceeds maximum allowed size of ${VALIDATION.MAX_IMAGE_SIZE_MB}MB`
                     );
                   }
-
-                  const filename = binaryData.fileName || `upload_${Date.now()}.${binaryData.mimeType.split('/')[1] || 'png'}`;
 
                   logger.info(`Uploading binary data to ComfyUI`, { filename, size: buffer.length, mimeType: binaryData.mimeType, paramName });
                   const uploadedFilename = await client.uploadImage(buffer, filename);

@@ -110,7 +110,19 @@ export declare class ComfyUIClient {
      * @returns Promise containing system stats
      */
     getSystemInfo(): Promise<Record<string, unknown>>;
+    /**
+     * Get image buffer from ComfyUI server
+     * @param imagePath - Path to the image on ComfyUI server
+     * @returns Promise containing image data as Buffer
+     * @throws Error if image retrieval fails
+     */
     getImageBuffer(imagePath: string): Promise<Buffer>;
+    /**
+     * Get video buffer from ComfyUI server
+     * @param videoPath - Path to the video on ComfyUI server
+     * @returns Promise containing video data as Buffer
+     * @throws Error if video retrieval fails
+     */
     getVideoBuffer(videoPath: string): Promise<Buffer>;
     /**
      * Format error message with additional context

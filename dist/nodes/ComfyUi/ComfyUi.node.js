@@ -6,6 +6,7 @@ const ComfyUiClient_1 = require("../ComfyUiClient");
 const validation_1 = require("../validation");
 const constants_1 = require("../constants");
 const logger_1 = require("../logger");
+const utils_1 = require("../utils");
 class ComfyUi {
     constructor() {
         /**
@@ -309,7 +310,7 @@ class ComfyUi {
         }
         let workflow;
         try {
-            workflow = JSON.parse(workflowJson);
+            workflow = (0, validation_1.safeJsonParse)(workflowJson, 'Workflow JSON');
         }
         catch (error) {
             throw new n8n_workflow_1.NodeOperationError(this.getNode(), `Failed to parse workflow JSON: ${error}. Please ensure the JSON is valid.`);
@@ -325,8 +326,7 @@ class ComfyUi {
             const nodeParametersInput = this.getNodeParameter('nodeParameters', 0);
             if (nodeParametersInput && nodeParametersInput.nodeParameter && Array.isArray(nodeParametersInput.nodeParameter)) {
                 logger.debug(`Processing ${nodeParametersInput.nodeParameter.length} node parameter overrides`);
-                for (let i = 0; i < nodeParametersInput.nodeParameter.length; i++) {
-                    const nodeParamConfig = nodeParametersInput.nodeParameter[i];
+                for (const [i, nodeParamConfig] of nodeParametersInput.nodeParameter.entries()) {
                     const nodeId = nodeParamConfig.nodeId;
                     const parameterMode = nodeParamConfig.parameterMode || 'single';
                     const parametersJson = nodeParamConfig.parametersJson;
@@ -420,7 +420,16 @@ class ComfyUi {
                                             filename = filename.split('?')[0];
                                         }
                                         if (!filename.match(/\.(png|jpg|jpeg|webp|gif|bmp)$/i)) {
-                                            filename = `download_${Date.now()}.png`;
+                                            filename = (0, utils_1.generateUniqueFilename)('png', 'download');
+                                        }
+                                        else {
+                                            try {
+                                                filename = (0, utils_1.validateFilename)(filename);
+                                            }
+                                            catch (error) {
+                                                logger.warn(`Invalid filename "${filename}", generating unique filename`, { error: error.message });
+                                                filename = (0, utils_1.generateUniqueFilename)('png', 'download');
+                                            }
                                         }
                                         logger.info(`Uploading image to ComfyUI`, { filename, size: imageBuffer.length });
                                         const uploadedFilename = await client.uploadImage(imageBuffer, filename);
@@ -484,16 +493,16 @@ TIP: Check the previous node's "Output Binary Key" parameter. It should match "$
                                         throw new n8n_workflow_1.NodeOperationError(this.getNode(), `Node Parameters ${i + 1}: Unsupported MIME type "${mimeType}". ` +
                                             `Allowed types: ${allowedMimeTypes.join(', ')}`);
                                     }
+                                    const ext = binaryData.mimeType.split('/')[1] || 'png';
+                                    const filename = binaryData.fileName || (0, utils_1.generateUniqueFilename)(ext, 'upload');
                                     const buffer = Buffer.from(base64Data, 'base64');
                                     if (!Buffer.isBuffer(buffer) || buffer.length === 0) {
                                         throw new n8n_workflow_1.NodeOperationError(this.getNode(), `Node Parameters ${i + 1}: Failed to decode binary data for property "${binaryPropertyName}". The data may be corrupted. Buffer length: ${buffer.length}`);
                                     }
-                                    // Validate decoded buffer size
                                     const maxBufferSize = constants_1.VALIDATION.MAX_IMAGE_SIZE_MB * 1024 * 1024;
                                     if (buffer.length > maxBufferSize) {
                                         throw new n8n_workflow_1.NodeOperationError(this.getNode(), `Node Parameters ${i + 1}: Decoded buffer size (${Math.round(buffer.length / 1024 / 1024)}MB) exceeds maximum allowed size of ${constants_1.VALIDATION.MAX_IMAGE_SIZE_MB}MB`);
                                     }
-                                    const filename = binaryData.fileName || `upload_${Date.now()}.${binaryData.mimeType.split('/')[1] || 'png'}`;
                                     logger.info(`Uploading binary data to ComfyUI`, { filename, size: buffer.length, mimeType: binaryData.mimeType, paramName });
                                     const uploadedFilename = await client.uploadImage(buffer, filename);
                                     parsedValue = uploadedFilename;

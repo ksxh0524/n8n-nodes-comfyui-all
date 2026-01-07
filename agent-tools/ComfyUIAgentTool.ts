@@ -12,7 +12,6 @@
 
 import axios from 'axios';
 import {
-  WorkflowNode,
   PromptResponse,
   HistoryResponse,
   Workflow,
@@ -23,7 +22,7 @@ import {
   ToolResult,
   ParameterExtractionResult
 } from '../nodes/types';
-import { getWorkflowTemplate, WorkflowConfig } from '../nodes/workflowConfig';
+import { getWorkflowTemplate } from '../nodes/workflowConfig';
 
 // Logger interface and implementation
 interface ILogger {
@@ -121,68 +120,6 @@ const PARAM_PATTERNS: Record<string, ParameterPattern> = {
     regex: /seed:\s*(\d+)/i,
     paramKey: 'seed',
     parser: (match: RegExpMatchArray) => parseInt(match[1])
-  }
-};
-
-// Example workflow template (text to image generation)
-// You can export your own workflow from ComfyUI and replace this template
-const WORKFLOW_TEMPLATE: Workflow = {
-  "3": {
-    "inputs": {
-      "seed": 0,
-      "steps": 20,
-      "cfg": 8,
-      "sampler_name": "euler",
-      "scheduler": "normal",
-      "denoise": 1,
-      "model": ["4", 0],
-      "positive": ["6", 0],
-      "negative": ["7", 0],
-      "latent_image": ["5", 0]
-    },
-    "class_type": "KSampler"
-  },
-  "4": {
-    "inputs": {
-      "ckpt_name": "v1-5-pruned-emaonly.ckpt"
-    },
-    "class_type": "CheckpointLoaderSimple"
-  },
-  "5": {
-    "inputs": {
-      "width": 512,
-      "height": 512,
-      "batch_size": 1
-    },
-    "class_type": "EmptyLatentImage"
-  },
-  "6": {
-    "inputs": {
-      "text": "",
-      "clip": ["4", 1]
-    },
-    "class_type": "CLIPTextEncode"
-  },
-  "7": {
-    "inputs": {
-      "text": "ugly, blurry, low quality",
-      "clip": ["4", 1]
-    },
-    "class_type": "CLIPTextEncode"
-  },
-  "8": {
-    "inputs": {
-      "samples": ["3", 0],
-      "vae": ["4", 2]
-    },
-    "class_type": "VAEDecode"
-  },
-  "9": {
-    "inputs": {
-      "filename_prefix": "ComfyUI",
-      "images": ["8", 0]
-    },
-    "class_type": "SaveImage"
   }
 };
 
@@ -469,10 +406,11 @@ async function executeComfyUIWorkflow(workflow: Workflow, comfyUiUrl?: string): 
  * @param query - User query text
  * @param options - Optional configuration parameters
  * @param options.comfyUiUrl - ComfyUI server URL
+ * @param options.workflowConfig - Workflow configuration options
  */
 export async function handleToolInput(query: string, options: ToolInputOptions = {}): Promise<ToolResult> {
   try {
-    const { comfyUiUrl } = options;
+    const { comfyUiUrl, workflowConfig } = options;
     logger.info(`Received query: ${query}`);
     if (comfyUiUrl) {
       logger.info(`Using ComfyUI URL: ${comfyUiUrl}`);
@@ -482,8 +420,11 @@ export async function handleToolInput(query: string, options: ToolInputOptions =
     const params = parseInput(query);
     logger.debug('Parsed parameters:', JSON.stringify(params, null, 2));
 
+    // Get workflow template from configuration
+    const workflowTemplate = getWorkflowTemplate(workflowConfig);
+
     // Update workflow
-    const workflow = updateWorkflow(WORKFLOW_TEMPLATE, params);
+    const workflow = updateWorkflow(workflowTemplate, params);
 
     // Execute workflow
     const result = await executeComfyUIWorkflow(workflow, comfyUiUrl);

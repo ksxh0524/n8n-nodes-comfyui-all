@@ -8,6 +8,7 @@ const crypto_1 = require("crypto");
 const constants_1 = require("./constants");
 const form_data_1 = __importDefault(require("form-data"));
 const logger_1 = require("./logger");
+const utils_1 = require("./utils");
 class ComfyUIClient {
     constructor(config) {
         this.isDestroyed = false;
@@ -351,6 +352,12 @@ class ComfyUIClient {
         }));
         return response;
     }
+    /**
+     * Get image buffer from ComfyUI server
+     * @param imagePath - Path to the image on ComfyUI server
+     * @returns Promise containing image data as Buffer
+     * @throws Error if image retrieval fails
+     */
     async getImageBuffer(imagePath) {
         try {
             if (this.isDestroyed) {
@@ -368,6 +375,12 @@ class ComfyUIClient {
             throw new Error(`Failed to get image buffer: ${this.formatErrorMessage(error)}`);
         }
     }
+    /**
+     * Get video buffer from ComfyUI server
+     * @param videoPath - Path to the video on ComfyUI server
+     * @returns Promise containing video data as Buffer
+     * @throws Error if video retrieval fails
+     */
     async getVideoBuffer(videoPath) {
         try {
             if (this.isDestroyed) {
@@ -423,31 +436,13 @@ class ComfyUIClient {
             for (let i = 0; i < result.images.length; i++) {
                 const imagePath = result.images[i];
                 const imageBuffer = await this.getImageBuffer(imagePath);
-                const filenameMatch = imagePath.match(/filename=([^&]+)/);
-                const filename = filenameMatch ? filenameMatch[1] : `image_${i}`;
-                let ext = 'png';
-                const extMatch = filename.match(/\.([^.]+)$/);
-                if (extMatch) {
-                    ext = extMatch[1].toLowerCase();
-                }
-                if (!extMatch && imagePath.includes('type=')) {
-                    const typeMatch = imagePath.match(/type=([^&]+)/);
-                    if (typeMatch) {
-                        const type = typeMatch[1].toLowerCase();
-                        const mimeMap = {
-                            'input': 'png',
-                            'output': 'png',
-                            'temp': 'png',
-                        };
-                        ext = mimeMap[type] || 'png';
-                    }
-                }
-                const mimeType = constants_1.IMAGE_MIME_TYPES[ext] || 'image/png';
+                const fileInfo = (0, utils_1.extractFileInfo)(imagePath, 'png');
+                const mimeType = (0, utils_1.validateMimeType)(fileInfo.mimeType, constants_1.IMAGE_MIME_TYPES);
                 const binaryKey = i === 0 ? outputBinaryKey : `image_${i}`;
                 binaryData[binaryKey] = {
                     data: imageBuffer.toString('base64'),
                     mimeType: mimeType,
-                    fileName: filename,
+                    fileName: fileInfo.filename,
                 };
             }
             jsonData.imageCount = result.images.length;
@@ -455,28 +450,15 @@ class ComfyUIClient {
         if (result.videos && result.videos.length > 0) {
             for (let i = 0; i < result.videos.length; i++) {
                 const videoPath = result.videos[i];
-                const typeMatch = videoPath.match(/type=([^&]+)/);
-                let videoType = 'mp4';
-                if (typeMatch) {
-                    videoType = typeMatch[1].toLowerCase();
-                }
-                const filenameMatch = videoPath.match(/filename=([^&]+)/);
-                let filename = filenameMatch ? filenameMatch[1] : `video_${i}.mp4`;
-                const extMatch = filename.match(/\.([^.]+)$/);
-                if (extMatch) {
-                    videoType = extMatch[1].toLowerCase();
-                }
-                else {
-                    filename = `${filename}.${videoType}`;
-                }
-                const mimeType = constants_1.VIDEO_MIME_TYPES[videoType] || 'video/mp4';
+                const fileInfo = (0, utils_1.extractFileInfo)(videoPath, 'mp4');
+                const mimeType = (0, utils_1.validateMimeType)(fileInfo.mimeType, constants_1.VIDEO_MIME_TYPES);
                 const videoBuffer = await this.getVideoBuffer(videoPath);
                 const hasImages = result.images && result.images.length > 0;
                 const binaryKey = (!hasImages && i === 0) ? outputBinaryKey : `video_${i}`;
                 binaryData[binaryKey] = {
                     data: videoBuffer.toString('base64'),
                     mimeType: mimeType,
-                    fileName: filename,
+                    fileName: fileInfo.filename,
                 };
             }
             jsonData.videoCount = result.videos.length;

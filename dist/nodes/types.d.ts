@@ -65,6 +65,11 @@ export interface ParameterPattern {
 }
 export interface ToolInputOptions {
     comfyUiUrl?: string;
+    workflowConfig?: WorkflowConfig;
+}
+export interface WorkflowConfig {
+    template?: Workflow;
+    customTemplate?: string;
 }
 export interface ToolResult {
     success: boolean;

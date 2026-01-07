@@ -3,6 +3,7 @@ import { VALIDATION, IMAGE_MIME_TYPES, VIDEO_MIME_TYPES } from './constants';
 import { IExecuteFunctions } from 'n8n-workflow';
 import FormData from 'form-data';
 import { Logger } from './logger';
+import { extractFileInfo, validateMimeType } from './utils';
 
 export interface ComfyUIClientConfig {
   baseUrl: string;
@@ -547,35 +548,14 @@ export class ComfyUIClient {
         const imagePath = result.images[i];
         const imageBuffer = await this.getImageBuffer(imagePath);
 
-        const filenameMatch = imagePath.match(/filename=([^&]+)/);
-        const filename = filenameMatch ? filenameMatch[1] : `image_${i}`;
-
-        let ext = 'png';
-        const extMatch = filename.match(/\.([^.]+)$/);
-        if (extMatch) {
-          ext = extMatch[1].toLowerCase();
-        }
-
-        if (!extMatch && imagePath.includes('type=')) {
-          const typeMatch = imagePath.match(/type=([^&]+)/);
-          if (typeMatch) {
-            const type = typeMatch[1].toLowerCase();
-            const mimeMap: Record<string, string> = {
-              'input': 'png',
-              'output': 'png',
-              'temp': 'png',
-            };
-            ext = mimeMap[type] || 'png';
-          }
-        }
-
-        const mimeType = IMAGE_MIME_TYPES[ext] || 'image/png';
+        const fileInfo = extractFileInfo(imagePath, 'png');
+        const mimeType = validateMimeType(fileInfo.mimeType, IMAGE_MIME_TYPES);
 
         const binaryKey = i === 0 ? outputBinaryKey : `image_${i}`;
         binaryData[binaryKey] = {
           data: imageBuffer.toString('base64'),
           mimeType: mimeType,
-          fileName: filename,
+          fileName: fileInfo.filename,
         };
       }
 
@@ -585,24 +565,8 @@ export class ComfyUIClient {
     if (result.videos && result.videos.length > 0) {
       for (let i = 0; i < result.videos.length; i++) {
         const videoPath = result.videos[i];
-
-        const typeMatch = videoPath.match(/type=([^&]+)/);
-        let videoType = 'mp4';
-        if (typeMatch) {
-          videoType = typeMatch[1].toLowerCase();
-        }
-
-        const filenameMatch = videoPath.match(/filename=([^&]+)/);
-        let filename = filenameMatch ? filenameMatch[1] : `video_${i}.mp4`;
-
-        const extMatch = filename.match(/\.([^.]+)$/);
-        if (extMatch) {
-          videoType = extMatch[1].toLowerCase();
-        } else {
-          filename = `${filename}.${videoType}`;
-        }
-
-        const mimeType = VIDEO_MIME_TYPES[videoType] || 'video/mp4';
+        const fileInfo = extractFileInfo(videoPath, 'mp4');
+        const mimeType = validateMimeType(fileInfo.mimeType, VIDEO_MIME_TYPES);
 
         const videoBuffer = await this.getVideoBuffer(videoPath);
 
@@ -611,7 +575,7 @@ export class ComfyUIClient {
         binaryData[binaryKey] = {
           data: videoBuffer.toString('base64'),
           mimeType: mimeType,
-          fileName: filename,
+          fileName: fileInfo.filename,
         };
       }
 
