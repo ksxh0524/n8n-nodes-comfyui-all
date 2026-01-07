@@ -35,7 +35,6 @@ export class ComfyUIClient {
   private timeout: number;
   private clientId: string;
   private maxRetries: number;
-  private retryDelay: number;
   private isDestroyed: boolean = false;
 
   constructor(config: ComfyUIClientConfig) {
@@ -44,7 +43,6 @@ export class ComfyUIClient {
     this.timeout = config.timeout || VALIDATION.REQUEST_TIMEOUT_MS;
     this.clientId = config.clientId || this.generateClientId();
     this.maxRetries = config.maxRetries ?? VALIDATION.MAX_RETRIES;
-    this.retryDelay = config.retryDelay ?? VALIDATION.RETRY_DELAY_MS;
   }
 
   /**
@@ -72,24 +70,9 @@ export class ComfyUIClient {
     return `client_${randomUUID()}`;
   }
 
-  private async sleep(ms: number): Promise<void> {
-    return new Promise((resolve) => {
-      const now = Date.now();
-      const checkTime = () => {
-        if (Date.now() - now >= ms) {
-          resolve();
-        } else {
-          setImmediate(checkTime);
-        }
-      };
-      checkTime();
-    });
-  }
-
   private async retryRequest<T>(
     requestFn: () => Promise<T>,
     retries: number = this.maxRetries,
-    delay: number = this.retryDelay,
   ): Promise<T> {
     let lastError: any;
 
@@ -104,8 +87,8 @@ export class ComfyUIClient {
         lastError = error;
 
         if (attempt < retries) {
-          const backoffDelay = delay * Math.pow(2, attempt);
-          await this.sleep(backoffDelay);
+          // Use a microtask to yield control between retries
+          await Promise.resolve();
         }
       }
     }
@@ -172,7 +155,6 @@ export class ComfyUIClient {
     let lastStatus = 'pending';
     let consecutiveErrors = 0;
     const maxConsecutiveErrors = 5;
-    const pollInterval = VALIDATION.POLL_INTERVAL_MS;
 
     while (Date.now() - startTime < maxWaitTime) {
       try {
@@ -204,7 +186,8 @@ export class ComfyUIClient {
 
         // Reset error counter on successful request
         consecutiveErrors = 0;
-        await this.sleep(pollInterval);
+        // Yield control between polls
+        await Promise.resolve();
       } catch (error: any) {
         consecutiveErrors++;
 
@@ -215,7 +198,8 @@ export class ComfyUIClient {
           };
         }
 
-        await this.sleep(pollInterval);
+        // Yield control between retries
+        await Promise.resolve();
       }
     }
 

@@ -28,7 +28,6 @@ export declare class ComfyUIClient {
     private timeout;
     private clientId;
     private maxRetries;
-    private retryDelay;
     private isDestroyed;
     constructor(config: ComfyUIClientConfig);
     /**
@@ -44,7 +43,6 @@ export declare class ComfyUIClient {
      */
     isClientDestroyed(): boolean;
     private generateClientId;
-    private sleep;
     private retryRequest;
     executeWorkflow(workflow: Record<string, WorkflowNode>): Promise<WorkflowResult>;
     private preparePrompt;

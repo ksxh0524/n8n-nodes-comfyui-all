@@ -11,7 +11,6 @@ class ComfyUIClient {
         this.timeout = config.timeout || constants_1.VALIDATION.REQUEST_TIMEOUT_MS;
         this.clientId = config.clientId || this.generateClientId();
         this.maxRetries = config.maxRetries ?? constants_1.VALIDATION.MAX_RETRIES;
-        this.retryDelay = config.retryDelay ?? constants_1.VALIDATION.RETRY_DELAY_MS;
     }
     /**
      * Cancel any ongoing request and clean up resources
@@ -34,21 +33,7 @@ class ComfyUIClient {
     generateClientId() {
         return `client_${(0, crypto_1.randomUUID)()}`;
     }
-    async sleep(ms) {
-        return new Promise((resolve) => {
-            const now = Date.now();
-            const checkTime = () => {
-                if (Date.now() - now >= ms) {
-                    resolve();
-                }
-                else {
-                    setImmediate(checkTime);
-                }
-            };
-            checkTime();
-        });
-    }
-    async retryRequest(requestFn, retries = this.maxRetries, delay = this.retryDelay) {
+    async retryRequest(requestFn, retries = this.maxRetries) {
         let lastError;
         for (let attempt = 0; attempt <= retries; attempt++) {
             try {
@@ -60,8 +45,8 @@ class ComfyUIClient {
             catch (error) {
                 lastError = error;
                 if (attempt < retries) {
-                    const backoffDelay = delay * Math.pow(2, attempt);
-                    await this.sleep(backoffDelay);
+                    // Use a microtask to yield control between retries
+                    await Promise.resolve();
                 }
             }
         }
@@ -117,7 +102,6 @@ class ComfyUIClient {
         let lastStatus = 'pending';
         let consecutiveErrors = 0;
         const maxConsecutiveErrors = 5;
-        const pollInterval = constants_1.VALIDATION.POLL_INTERVAL_MS;
         while (Date.now() - startTime < maxWaitTime) {
             try {
                 if (this.isDestroyed) {
@@ -143,7 +127,8 @@ class ComfyUIClient {
                 }
                 // Reset error counter on successful request
                 consecutiveErrors = 0;
-                await this.sleep(pollInterval);
+                // Yield control between polls
+                await Promise.resolve();
             }
             catch (error) {
                 consecutiveErrors++;
@@ -153,7 +138,8 @@ class ComfyUIClient {
                         error: `Workflow execution failed after ${maxConsecutiveErrors} consecutive errors: ${error.message}`,
                     };
                 }
-                await this.sleep(pollInterval);
+                // Yield control between retries
+                await Promise.resolve();
             }
         }
         return {
