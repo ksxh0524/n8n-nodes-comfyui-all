@@ -208,17 +208,21 @@ class ComfyUIClient {
         if (this.isDestroyed) {
             throw new Error('Client has been destroyed');
         }
+        console.log('[ComfyUI] Uploading image:', { filename, size: imageData.length });
+        const FormData = require('form-data');
+        const form = new FormData();
+        form.append('image', imageData, { filename: filename });
+        form.append('overwrite', overwrite.toString());
         const response = await this.retryRequest(() => this.helpers.httpRequest({
             method: 'POST',
             url: `${this.baseUrl}/upload/image`,
-            body: {
-                image: imageData,
-                filename: filename,
-                overwrite: overwrite,
+            body: form,
+            headers: {
+                ...form.getHeaders(),
             },
-            json: true,
             timeout: this.timeout,
         }));
+        console.log('[ComfyUI] Upload response:', response);
         return response.name;
     }
     async getSystemInfo() {
