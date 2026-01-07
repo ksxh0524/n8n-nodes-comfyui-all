@@ -105,7 +105,7 @@ export class ComfyUIClient {
     requestFn: () => Promise<T>,
     retries: number = this.maxRetries,
   ): Promise<T> {
-    let lastError: any;
+    let lastError: unknown;
     const baseDelay = VALIDATION.RETRY_DELAY_MS as number;
     const maxBackoffDelay = VALIDATION.MAX_BACKOFF_DELAY_RETRY as number;
     let backoffDelay = baseDelay;
@@ -125,11 +125,11 @@ export class ComfyUIClient {
         }
 
         return await requestFn();
-      } catch (error: any) {
+      } catch (error: unknown) {
         lastError = error;
 
         // If aborted, don't retry
-        if (error.name === 'AbortError' || error.message === 'Request aborted') {
+        if (error instanceof Error && (error.name === 'AbortError' || error.message === 'Request aborted')) {
           throw new Error('Request was cancelled');
         }
 
@@ -138,7 +138,8 @@ export class ComfyUIClient {
           backoffDelay = Math.min(backoffDelay * 2, maxBackoffDelay);
 
           if (attempt > 0) {
-            this.logger.warn(`Request attempt ${attempt + 1}/${retries + 1} failed, retrying in ${backoffDelay}ms: ${error.message}`);
+            const errorMsg = error instanceof Error ? error.message : String(error);
+            this.logger.warn(`Request attempt ${attempt + 1}/${retries + 1} failed, retrying in ${backoffDelay}ms: ${errorMsg}`);
           }
 
           // Wait before retrying with exponential backoff
@@ -180,6 +181,7 @@ export class ComfyUIClient {
           json: true,
           body: requestBody,
           timeout: this.timeout,
+          abortSignal: this.abortController?.signal,
         }),
       );
 
@@ -193,13 +195,15 @@ export class ComfyUIClient {
         success: false,
         error: 'Failed to execute workflow: No prompt_id returned',
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       this.logger.error('Workflow execution error:', error);
+      const err = error instanceof Error ? error : new Error(String(error));
+      const errObj = err as any;
       this.logger.error('Error details:', {
-        message: error.message,
-        statusCode: error.response?.statusCode || error.statusCode,
-        statusMessage: error.response?.statusMessage || error.statusMessage,
-        responseBody: error.response?.body || error.response?.data,
+        message: err.message,
+        statusCode: errObj.response?.statusCode || errObj.statusCode,
+        statusMessage: errObj.response?.statusMessage || errObj.statusMessage,
+        responseBody: errObj.response?.body || errObj.response?.data,
       });
 
       return {
@@ -259,6 +263,7 @@ export class ComfyUIClient {
           url: `${this.baseUrl}/history/${promptId}`,
           json: true,
           timeout: this.timeout,
+          abortSignal: this.abortController?.signal,
         });
 
         if (response[promptId]) {
@@ -278,15 +283,17 @@ export class ComfyUIClient {
         backoffDelay = baseDelay; // Reset backoff delay
         // Wait before next poll
         await this.delay(baseDelay);
-      } catch (error: any) {
+      } catch (error: unknown) {
         consecutiveErrors++;
         totalErrors++;
+
+        const errorMsg = error instanceof Error ? error.message : String(error);
 
         // Check consecutive errors limit
         if (consecutiveErrors >= maxConsecutiveErrors) {
           return {
             success: false,
-            error: `Workflow execution failed after ${maxConsecutiveErrors} consecutive errors: ${error.message}`,
+            error: `Workflow execution failed after ${maxConsecutiveErrors} consecutive errors: ${errorMsg}`,
           };
         }
 
@@ -294,14 +301,14 @@ export class ComfyUIClient {
         if (totalErrors >= maxTotalErrors) {
           return {
             success: false,
-            error: `Workflow execution failed after ${maxTotalErrors} total errors (last: ${error.message})`,
+            error: `Workflow execution failed after ${maxTotalErrors} total errors (last: ${errorMsg})`,
           };
         }
 
         // Exponential backoff: double the delay with each error, capped at maxBackoffDelay
         backoffDelay = Math.min(backoffDelay * 2, maxBackoffDelay);
 
-        this.logger.warn(`Polling error ${consecutiveErrors}/${maxConsecutiveErrors} (total: ${totalErrors}/${maxTotalErrors}), retrying in ${backoffDelay}ms: ${error.message}`);
+        this.logger.warn(`Polling error ${consecutiveErrors}/${maxConsecutiveErrors} (total: ${totalErrors}/${maxTotalErrors}), retrying in ${backoffDelay}ms: ${errorMsg}`);
 
         // Wait with exponential backoff
         await this.delay(backoffDelay);
@@ -375,6 +382,7 @@ export class ComfyUIClient {
         qs: { limit },
         json: true,
         timeout: this.timeout,
+        abortSignal: this.abortController?.signal,
       }),
     );
     return response;
@@ -425,6 +433,7 @@ export class ComfyUIClient {
           ...form.getHeaders(),
         },
         timeout: this.timeout,
+        abortSignal: this.abortController?.signal,
       }),
     );
 
@@ -448,6 +457,7 @@ export class ComfyUIClient {
         url: `${this.baseUrl}/system_stats`,
         json: true,
         timeout: this.timeout,
+        abortSignal: this.abortController?.signal,
       }),
     );
     return response;
@@ -470,9 +480,20 @@ export class ComfyUIClient {
         url: `${this.baseUrl}${imagePath}`,
         encoding: 'arraybuffer',
         timeout: this.timeout,
+        abortSignal: this.abortController?.signal,
       });
-      return Buffer.from(response);
-    } catch (error: any) {
+      const buffer = Buffer.from(response);
+
+      // Validate buffer size (maximum 50MB as defined in VALIDATION.MAX_IMAGE_SIZE_MB)
+      const maxSize = VALIDATION.MAX_IMAGE_SIZE_MB as number * 1024 * 1024;
+      if (buffer.length > maxSize) {
+        throw new Error(
+          `Image size (${Math.round(buffer.length / 1024 / 1024)}MB) exceeds maximum allowed size of ${VALIDATION.MAX_IMAGE_SIZE_MB as number}MB`
+        );
+      }
+
+      return buffer;
+    } catch (error: unknown) {
       throw new Error(`Failed to get image buffer: ${this.formatErrorMessage(error)}`);
     }
   }
@@ -494,9 +515,20 @@ export class ComfyUIClient {
         url: `${this.baseUrl}${videoPath}`,
         encoding: 'arraybuffer',
         timeout: this.timeout,
+        abortSignal: this.abortController?.signal,
       });
-      return Buffer.from(response);
-    } catch (error: any) {
+      const buffer = Buffer.from(response);
+
+      // Validate buffer size (maximum 50MB as defined in VALIDATION.MAX_IMAGE_SIZE_MB)
+      const maxSize = VALIDATION.MAX_IMAGE_SIZE_MB as number * 1024 * 1024;
+      if (buffer.length > maxSize) {
+        throw new Error(
+          `Video size (${Math.round(buffer.length / 1024 / 1024)}MB) exceeds maximum allowed size of ${VALIDATION.MAX_IMAGE_SIZE_MB as number}MB`
+        );
+      }
+
+      return buffer;
+    } catch (error: unknown) {
       throw new Error(`Failed to get video buffer: ${this.formatErrorMessage(error)}`);
     }
   }
@@ -504,13 +536,17 @@ export class ComfyUIClient {
   /**
    * Format error message with additional context
    */
-  private formatErrorMessage(error: any, context: string = ''): string {
-    if (error.response) {
-      return `${context}: ${error.response.statusCode} ${error.response.statusMessage}`;
-    } else if (error.request) {
-      return `${context}: No response from server`;
+  private formatErrorMessage(error: unknown, context: string = ''): string {
+    if (error instanceof Error) {
+      const err = error as any;
+      if (err.response) {
+        return `${context}: ${err.response.statusCode} ${err.response.statusMessage}`;
+      } else if (err.request) {
+        return `${context}: No response from server`;
+      }
+      return context ? `${context}: ${error.message}` : error.message;
     }
-    return context ? `${context}: ${error.message}` : error.message;
+    return context ? `${context}: ${String(error)}` : String(error);
   }
 
   /**
