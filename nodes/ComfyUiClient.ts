@@ -8,6 +8,40 @@ import { HttpClient } from './HttpClient';
 import { N8nHelpersAdapter } from './N8nHelpersAdapter';
 
 /**
+ * Safely stringify error objects, handling circular references
+ * @param obj - Object to stringify
+ * @returns String representation of object
+ */
+function safeStringify(obj: unknown): string {
+  if (obj === null || obj === undefined) {
+    return String(obj);
+  }
+  
+  if (typeof obj !== 'object') {
+    return String(obj);
+  }
+  
+  try {
+    return JSON.stringify(obj, (_, value) => {
+      if (typeof value === 'object' && value !== null) {
+        if (seen.has(value)) {
+          return '[Circular]';
+        }
+        seen.add(value);
+      }
+      return value;
+    });
+  } catch {
+    if (obj instanceof Error) {
+      return obj.message;
+    }
+    return String(obj);
+  }
+}
+
+const seen = new WeakSet();
+
+/**
  * Client state enumeration for state machine pattern
  */
 enum ClientState {
@@ -167,7 +201,7 @@ export class ComfyUIClient {
               if (error instanceof Error) {
                 errorMsg = error.message;
               } else if (error && typeof error === 'object') {
-                errorMsg = JSON.stringify(error);
+                errorMsg = safeStringify(error);
               } else {
                 errorMsg = String(error);
               }
@@ -208,7 +242,7 @@ export class ComfyUIClient {
         client_id: this.clientId,
       };
 
-      this.logger.debug('Sending workflow to ComfyUI:', JSON.stringify(requestBody, null, 2));
+      this.logger.debug('Sending workflow to ComfyUI:', safeStringify(requestBody));
 
       const response = await this.retryRequest(() =>
         this.httpClient.post<{ prompt_id: string }>(`${this.baseUrl}/prompt`, requestBody, {
@@ -217,7 +251,7 @@ export class ComfyUIClient {
         }),
       );
 
-      this.logger.debug('Response from ComfyUI:', JSON.stringify(response, null, 2));
+      this.logger.debug('Response from ComfyUI:', safeStringify(response));
 
       if (response.prompt_id) {
         return await this.waitForExecution(response.prompt_id);

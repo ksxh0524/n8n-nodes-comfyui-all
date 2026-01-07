@@ -3,6 +3,42 @@ import { NodeParameterConfig, Workflow } from './types';
 import { safeJsonParse } from './validation';
 import { Logger } from './logger';
 
+/**
+ * Safely stringify error objects, handling circular references
+ * @param obj - Object to stringify
+ * @returns String representation of the object
+ */
+function safeStringify(obj: unknown): string {
+  if (obj === null || obj === undefined) {
+    return String(obj);
+  }
+  
+  if (typeof obj !== 'object') {
+    return String(obj);
+  }
+  
+  try {
+    return JSON.stringify(obj, (_, value) => {
+      if (typeof value === 'object' && value !== null) {
+        // Check for circular reference
+        if (seen.has(value)) {
+          return '[Circular]';
+        }
+        seen.add(value);
+      }
+      return value;
+    });
+  } catch {
+    // If stringify fails, return a simple string representation
+    if (obj instanceof Error) {
+      return obj.message;
+    }
+    return String(obj);
+  }
+}
+
+const seen = new WeakSet();
+
 export interface ParameterProcessorConfig {
   executeFunctions: IExecuteFunctions;
   logger: Logger;
@@ -108,7 +144,7 @@ export class ParameterProcessor {
       if (error instanceof Error) {
         errorDetail = error.message;
       } else if (error && typeof error === 'object') {
-        errorDetail = JSON.stringify(error);
+        errorDetail = safeStringify(error);
       } else {
         errorDetail = String(error);
       }
