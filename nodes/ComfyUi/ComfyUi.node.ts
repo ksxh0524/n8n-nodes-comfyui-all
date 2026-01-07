@@ -453,6 +453,10 @@ export class ComfyUi {
                     try {
                       const urlObj = new URL(imageUrl);
                       const filename = urlObj.searchParams.get('filename');
+                      const subfolder = urlObj.searchParams.get('subfolder');
+                      const type = urlObj.searchParams.get('type');
+
+                      logger.info(`ComfyUI URL parsed`, { filename, subfolder, type, paramName });
 
                       if (!filename) {
                         throw new NodeOperationError(this.getNode(), `Node Parameters ${i + 1}: Could not extract filename from ComfyUI URL "${imageUrl}". The URL must contain a "filename" parameter.`);
@@ -462,8 +466,9 @@ export class ComfyUi {
                       parsedValue = filename;
                       workflow[nodeId].inputs[paramName] = parsedValue;
 
-                      logger.info(`Successfully extracted ComfyUI filename`, { paramName, filename });
+                      logger.info(`Successfully extracted ComfyUI filename`, { paramName, filename, nodeId });
                     } catch (error: any) {
+                      logger.error(`Failed to parse ComfyUI URL`, { url: imageUrl, error: error.message });
                       throw new NodeOperationError(this.getNode(), `Node Parameters ${i + 1}: Failed to parse ComfyUI URL "${imageUrl}": ${error.message}`);
                     }
                   } else {
@@ -587,6 +592,13 @@ export class ComfyUi {
           }
         }
       }
+
+      // Log workflow before execution
+      logger.info('Prepared workflow for execution', {
+        nodeCount: Object.keys(workflow).length,
+        comfyUiUrl,
+        workflow: JSON.stringify(workflow, null, 2),
+      });
 
       logger.info('Executing ComfyUI workflow', { nodeCount: Object.keys(workflow).length, comfyUiUrl });
       const result = await client.executeWorkflow(workflow);
