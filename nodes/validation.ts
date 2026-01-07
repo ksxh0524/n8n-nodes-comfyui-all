@@ -32,7 +32,11 @@ function getObjectDepth(
   let nodeCount = 0;
 
   while (stack.length > 0) {
-    const { value, depth } = stack.pop()!;
+    const popped = stack.pop();
+    if (!popped) {
+      break;
+    }
+    const { value, depth } = popped;
     nodeCount++;
 
     // Early termination if node count limit exceeded

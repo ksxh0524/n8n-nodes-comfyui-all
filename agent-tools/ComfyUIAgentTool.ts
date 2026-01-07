@@ -10,7 +10,6 @@
  * 4. Add this tool to the tools list of the AI Agent node
  */
 
-import axios from 'axios';
 import { randomInt } from 'crypto';
 import {
   PromptResponse,
@@ -25,52 +24,26 @@ import {
   HttpError
 } from '../nodes/types';
 import { getWorkflowTemplate } from '../nodes/workflowConfig';
-
-// Type for axios config with abort signal support
-type AxiosConfigWithSignal = {
-  timeout?: number;
-  signal?: AbortSignal;
-};
-
-// Logger interface and implementation
-interface ILogger {
-  debug(message: string, ...args: unknown[]): void;
-  info(message: string, ...args: unknown[]): void;
-  warn(message: string, ...args: unknown[]): void;
-  error(message: string, ...args: unknown[]): void;
-}
-
-class ConsoleLogger implements ILogger {
-  private prefix: string;
-
-  constructor(prefix: string = '[ComfyUI Tool]') {
-    this.prefix = prefix;
-  }
-
-  debug(message: string, ...args: unknown[]): void {
-    if (process.env.NODE_ENV === 'development' || process.env.DEBUG) {
-      console.log(`${this.prefix} ${message}`, ...args);
-    }
-  }
-
-  info(message: string, ...args: unknown[]): void {
-    console.log(`${this.prefix} ${message}`, ...args);
-  }
-
-  warn(message: string, ...args: unknown[]): void {
-    console.warn(`${this.prefix} ${message}`, ...args);
-  }
-
-  error(message: string, ...args: unknown[]): void {
-    console.error(`${this.prefix} ${message}`, ...args);
-  }
-}
-
-// Create logger instance
-const logger = new ConsoleLogger('[ComfyUI Tool]');
+import { HttpClient } from '../nodes/HttpClient';
+import { AxiosAdapter } from '../nodes/AxiosAdapter';
+import { Logger } from '../nodes/logger';
 
 // Default configuration
 const DEFAULT_COMFYUI_URL = 'http://127.0.0.1:8188';
+
+// Request timeout configuration
+const QUEUE_REQUEST_TIMEOUT = 30000; // Queue request timeout 30 seconds
+const HISTORY_REQUEST_TIMEOUT = 10000; // History request timeout 10 seconds
+
+// Create logger instance
+const logger = new Logger(undefined, ['ComfyUI Tool']);
+
+// Create HTTP client instance
+const httpClient = new HttpClient({
+  adapter: new AxiosAdapter(),
+  logger,
+  defaultTimeout: QUEUE_REQUEST_TIMEOUT,
+});
 
 // Global AbortController for cancelling requests
 let currentAbortController: AbortController | null = null;
@@ -102,10 +75,6 @@ const MAX_SEED_VALUE = 2147483647;
 // Polling configuration
 const POLLING_MAX_ATTEMPTS = 120; // Maximum wait time of 2 minutes (120 seconds)
 const POLLING_INTERVAL_MS = 1000; // Polling interval of 1 second
-
-// Request timeout configuration
-const QUEUE_REQUEST_TIMEOUT = 30000; // Queue request timeout 30 seconds
-const HISTORY_REQUEST_TIMEOUT = 10000; // History request timeout 10 seconds
 
 /**
  * Promise-based delay function
@@ -381,15 +350,12 @@ async function executeComfyUIWorkflow(
     // 1. Queue prompt
     let promptResponse;
     try {
-      const config: AxiosConfigWithSignal = {
-        timeout: QUEUE_REQUEST_TIMEOUT,
-      };
-      if (effectiveSignal) {
-        config.signal = effectiveSignal;
-      }
-      promptResponse = await axios.post<PromptResponse>(`${url}/prompt`, {
+      promptResponse = await httpClient.post<PromptResponse>(`${url}/prompt`, {
         prompt: workflow
-      }, config as unknown as Record<string, unknown>);
+      }, {
+        timeout: QUEUE_REQUEST_TIMEOUT,
+        abortSignal: effectiveSignal,
+      });
     } catch (error: unknown) {
       if (error instanceof Error) {
         if (error.name === 'CanceledError' || effectiveSignal?.aborted) {
@@ -410,11 +376,11 @@ async function executeComfyUIWorkflow(
       throw new Error(`Failed to queue workflow: ${String(error)}`);
     }
 
-    if (!promptResponse.data || !promptResponse.data.prompt_id) {
+    if (!promptResponse || !promptResponse.prompt_id) {
       throw new Error('Invalid response from ComfyUI server: missing prompt_id');
     }
 
-    const promptId = promptResponse.data.prompt_id;
+    const promptId = promptResponse.prompt_id;
     logger.info(`Workflow queued with ID: ${promptId}`);
 
     // 2. Poll for results
@@ -431,13 +397,10 @@ async function executeComfyUIWorkflow(
       // Check history
       let historyResponse;
       try {
-        const config: AxiosConfigWithSignal = {
+        historyResponse = await httpClient.get<HistoryResponse>(`${url}/history/${promptId}`, {
           timeout: HISTORY_REQUEST_TIMEOUT,
-        };
-        if (effectiveSignal) {
-          config.signal = effectiveSignal;
-        }
-        historyResponse = await axios.get<HistoryResponse>(`${url}/history/${promptId}`, config as unknown as Record<string, unknown>);
+          abortSignal: effectiveSignal,
+        });
       } catch (error: unknown) {
         if (effectiveSignal?.aborted || (error instanceof Error && error.name === 'CanceledError')) {
           throw new Error('Workflow execution was cancelled');
@@ -459,8 +422,8 @@ async function executeComfyUIWorkflow(
         }
       }
 
-      if (historyResponse.data && historyResponse.data[promptId]) {
-        const outputs = historyResponse.data[promptId].outputs as Record<string, unknown> | undefined;
+      if (historyResponse && historyResponse[promptId]) {
+        const outputs = historyResponse[promptId].outputs as Record<string, unknown> | undefined;
 
         if (outputs) {
           const images = extractImagesFromOutputs(outputs, url);

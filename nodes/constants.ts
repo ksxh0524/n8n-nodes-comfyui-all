@@ -83,6 +83,14 @@ export const IMAGE_MIME_TYPES: Record<string, string> = {
 // Base64 encoding increases size by approximately 33%, so decoding reduces by ~0.75
 export const BASE64_DECODE_FACTOR = 0.75;
 
+// HTTP request headers
+// User-Agent string for HTTP requests to mimic a real browser
+export const HTTP_HEADERS = {
+  USER_AGENT: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+  ACCEPT: 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
+  ACCEPT_LANGUAGE: 'en-US,en;q=0.9',
+} as const;
+
 export const VIDEO_MIME_TYPES: Record<string, string> = {
   'mp4': 'video/mp4',
   'webm': 'video/webm',

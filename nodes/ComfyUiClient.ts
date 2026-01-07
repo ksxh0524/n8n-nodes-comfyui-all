@@ -5,6 +5,8 @@ import FormData from 'form-data';
 import { Logger } from './logger';
 import { extractFileInfo, validateMimeType, getMaxImageSizeBytes, formatBytes } from './utils';
 import { HttpError, BinaryData, JsonData, ProcessOutput } from './types';
+import { HttpClient } from './HttpClient';
+import { N8nHelpersAdapter } from './N8nHelpersAdapter';
 
 /**
  * Client state enumeration for state machine pattern
@@ -44,20 +46,22 @@ export interface WorkflowResult {
 }
 
 export class ComfyUIClient {
-  private helpers: IExecuteFunctions['helpers'];
+  private httpClient: HttpClient;
   private logger: Logger;
   private baseUrl: string;
-  private timeout: number;
   private clientId: string;
   private maxRetries: number;
   private state: ClientState = ClientState.IDLE;
   private currentAbortController: AbortController | null = null;
 
   constructor(config: ComfyUIClientConfig) {
-    this.helpers = config.helpers;
+    this.httpClient = new HttpClient({
+      adapter: new N8nHelpersAdapter(config.helpers),
+      logger: config.logger || new Logger(),
+      defaultTimeout: config.timeout || VALIDATION.REQUEST_TIMEOUT_MS,
+    });
     this.logger = config.logger || new Logger();
     this.baseUrl = config.baseUrl;
-    this.timeout = config.timeout || VALIDATION.REQUEST_TIMEOUT_MS;
     this.clientId = config.clientId || this.generateClientId();
     this.maxRetries = config.maxRetries ?? VALIDATION.MAX_RETRIES;
   }
@@ -192,12 +196,8 @@ export class ComfyUIClient {
       this.logger.debug('Sending workflow to ComfyUI:', JSON.stringify(requestBody, null, 2));
 
       const response = await this.retryRequest(() =>
-        this.helpers.httpRequest({
-          method: 'POST',
-          url: `${this.baseUrl}/prompt`,
+        this.httpClient.post<{ prompt_id: string }>(`${this.baseUrl}/prompt`, requestBody, {
           json: true,
-          body: requestBody,
-          timeout: this.timeout,
           abortSignal: this.currentAbortController?.signal,
         }),
       );
@@ -275,19 +275,17 @@ export class ComfyUIClient {
           };
         }
 
-        const response = await this.helpers.httpRequest({
-          method: 'GET',
-          url: `${this.baseUrl}/history/${promptId}`,
+        const response = await this.httpClient.get<Record<string, unknown>>(`${this.baseUrl}/history/${promptId}`, {
           json: true,
-          timeout: this.timeout,
           abortSignal: this.currentAbortController?.signal,
         });
 
         if (response[promptId]) {
-          const status = response[promptId].status;
+          const promptData = response[promptId] as { status: { completed: boolean; status_str: string }; outputs?: unknown };
+          const status = promptData.status;
 
           if (status.completed) {
-            return this.extractResults(response[promptId].outputs);
+            return this.extractResults(promptData.outputs);
           }
 
           if (lastStatus !== status.status_str) {
@@ -341,45 +339,56 @@ export class ComfyUIClient {
   /**
    * Extract image and video results from workflow outputs
    *
-   * Note: The `outputs` parameter uses `any` type because ComfyUI API responses
+   * Note: The `outputs` parameter uses `WorkflowOutputs` type because ComfyUI API responses
    * have a dynamic structure that is not guaranteed. Different ComfyUI nodes
    * may return different output formats, and we need to handle this flexibility.
    *
-   * @param outputs - Raw output data from ComfyUI (format is not guaranteed, using any for flexibility)
+   * @param outputs - Raw output data from ComfyUI (format is not guaranteed, using WorkflowOutputs for flexibility)
    * @returns WorkflowResult with extracted images and videos
    */
-  private extractResults(outputs: any): WorkflowResult {
+  private extractResults(outputs: unknown): WorkflowResult {
     const result: WorkflowResult = {
       success: true,
       images: [],
       videos: [],
-      output: outputs,
+      output: outputs as Record<string, unknown>,
     };
 
-    for (const nodeId in outputs) {
-      const nodeOutput = outputs[nodeId];
+    const outputsRecord = outputs as Record<string, unknown>;
+
+    for (const nodeId in outputsRecord) {
+      const nodeOutput = outputsRecord[nodeId];
+
+      if (!nodeOutput || typeof nodeOutput !== 'object') {
+        continue;
+      }
+
+      const nodeOutputObj = nodeOutput as { images?: unknown[]; videos?: unknown[]; gifs?: unknown[] };
 
       // Process images
-      if (nodeOutput.images && Array.isArray(nodeOutput.images)) {
-        for (const image of nodeOutput.images) {
-          const imageUrl = `/view?filename=${image.filename}&subfolder=${image.subfolder || ''}&type=${image.type}`;
-          result.images!.push(imageUrl);
+      if (nodeOutputObj.images && Array.isArray(nodeOutputObj.images)) {
+        for (const image of nodeOutputObj.images) {
+          const imageObj = image as { filename: string; subfolder?: string; type: string };
+          const imageUrl = `/view?filename=${imageObj.filename}&subfolder=${imageObj.subfolder || ''}&type=${imageObj.type}`;
+          result.images?.push(imageUrl);
         }
       }
 
       // Process videos (videos array)
-      if (nodeOutput.videos && Array.isArray(nodeOutput.videos)) {
-        for (const video of nodeOutput.videos) {
-          const videoUrl = `/view?filename=${video.filename}&subfolder=${video.subfolder || ''}&type=${video.type}`;
-          result.videos!.push(videoUrl);
+      if (nodeOutputObj.videos && Array.isArray(nodeOutputObj.videos)) {
+        for (const video of nodeOutputObj.videos) {
+          const videoObj = video as { filename: string; subfolder?: string; type: string };
+          const videoUrl = `/view?filename=${videoObj.filename}&subfolder=${videoObj.subfolder || ''}&type=${videoObj.type}`;
+          result.videos?.push(videoUrl);
         }
       }
 
       // Process videos (gifs array) - some nodes use this name
-      if (nodeOutput.gifs && Array.isArray(nodeOutput.gifs)) {
-        for (const video of nodeOutput.gifs) {
-          const videoUrl = `/view?filename=${video.filename}&subfolder=${video.subfolder || ''}&type=${video.type}`;
-          result.videos!.push(videoUrl);
+      if (nodeOutputObj.gifs && Array.isArray(nodeOutputObj.gifs)) {
+        for (const video of nodeOutputObj.gifs) {
+          const videoObj = video as { filename: string; subfolder?: string; type: string };
+          const videoUrl = `/view?filename=${videoObj.filename}&subfolder=${videoObj.subfolder || ''}&type=${videoObj.type}`;
+          result.videos?.push(videoUrl);
         }
       }
     }
@@ -398,12 +407,9 @@ export class ComfyUIClient {
     }
 
     const response = await this.retryRequest(() =>
-      this.helpers.httpRequest({
-        method: 'GET',
-        url: `${this.baseUrl}/history`,
-        qs: { limit },
+      this.httpClient.get<Record<string, unknown>>(`${this.baseUrl}/history`, {
+        qs: { limit } as Record<string, unknown>,
         json: true,
-        timeout: this.timeout,
         abortSignal: this.currentAbortController?.signal,
       }),
     );
@@ -447,14 +453,13 @@ export class ComfyUIClient {
     form.append('overwrite', overwrite.toString());
 
     const response = await this.retryRequest(() =>
-      this.helpers.httpRequest({
+      this.httpClient.request<{ name: string }>({
         method: 'POST',
         url: `${this.baseUrl}/upload/image`,
         body: form,
         headers: {
           ...form.getHeaders(),
         },
-        timeout: this.timeout,
         abortSignal: this.currentAbortController?.signal,
       }),
     );
@@ -474,11 +479,8 @@ export class ComfyUIClient {
     }
 
     const response = await this.retryRequest(() =>
-      this.helpers.httpRequest({
-        method: 'GET',
-        url: `${this.baseUrl}/system_stats`,
+      this.httpClient.get<Record<string, unknown>>(`${this.baseUrl}/system_stats`, {
         json: true,
-        timeout: this.timeout,
         abortSignal: this.currentAbortController?.signal,
       }),
     );
@@ -491,9 +493,7 @@ export class ComfyUIClient {
    */
   async healthCheck(): Promise<{ healthy: boolean; message: string }> {
     try {
-      await this.helpers.httpRequest({
-        method: 'GET',
-        url: `${this.baseUrl}/system_stats`,
+      await this.httpClient.get(`${this.baseUrl}/system_stats`, {
         json: true,
         timeout: 5000,
       });
@@ -523,11 +523,8 @@ export class ComfyUIClient {
         throw new Error('Client has been destroyed');
       }
 
-      const response = await this.helpers.httpRequest({
-        method: 'GET',
-        url: `${this.baseUrl}${path}`,
+      const response = await this.httpClient.get<ArrayBuffer>(`${this.baseUrl}${path}`, {
         encoding: 'arraybuffer',
-        timeout: this.timeout,
         abortSignal: this.currentAbortController?.signal,
       });
       const buffer = Buffer.from(response);
