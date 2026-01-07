@@ -497,14 +497,16 @@ export class ComfyUIClient {
 
     this.logger.debug('Uploading image:', { filename, size: imageData.length });
 
+    // Create FormData for file upload
+    const formData = new FormData();
+    formData.append('image', new Blob([imageData], { type: 'image/png' }), filename);
+    formData.append('overwrite', overwrite.toString());
+
     const response = await this.retryRequest(() =>
       this.httpClient.request<{ name: string }>({
         method: 'POST',
         url: `${this.baseUrl}/upload/image`,
-        body: {
-          image: imageData,
-          overwrite: overwrite.toString(),
-        },
+        body: formData,
         json: false,
         abortSignal: this.currentAbortController?.signal,
       }),
