@@ -46,6 +46,7 @@ export declare class ComfyUIClient {
      */
     isClientDestroyed(): boolean;
     private generateClientId;
+    private delay;
     private retryRequest;
     executeWorkflow(workflow: Record<string, WorkflowNode>): Promise<WorkflowResult>;
     private preparePrompt;

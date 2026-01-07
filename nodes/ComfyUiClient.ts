@@ -75,6 +75,10 @@ export class ComfyUIClient {
     return `client_${randomUUID()}`;
   }
 
+  private async delay(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
   private async retryRequest<T>(
     requestFn: () => Promise<T>,
     retries: number = this.maxRetries,
@@ -92,8 +96,8 @@ export class ComfyUIClient {
         lastError = error;
 
         if (attempt < retries) {
-          // Use a microtask to yield control between retries
-          await Promise.resolve();
+          // Wait before retrying
+          await this.delay(VALIDATION.RETRY_DELAY_MS);
         }
       }
     }
@@ -205,8 +209,8 @@ export class ComfyUIClient {
 
         // Reset error counter on successful request
         consecutiveErrors = 0;
-        // Yield control between polls
-        await Promise.resolve();
+        // Wait before next poll
+        await this.delay(VALIDATION.POLL_INTERVAL_MS);
       } catch (error: any) {
         consecutiveErrors++;
 
@@ -217,8 +221,8 @@ export class ComfyUIClient {
           };
         }
 
-        // Yield control between retries
-        await Promise.resolve();
+        // Wait before retrying
+        await this.delay(VALIDATION.POLL_INTERVAL_MS);
       }
     }
 

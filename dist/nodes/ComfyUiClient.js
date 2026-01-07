@@ -39,6 +39,9 @@ class ComfyUIClient {
     generateClientId() {
         return `client_${(0, crypto_1.randomUUID)()}`;
     }
+    async delay(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
+    }
     async retryRequest(requestFn, retries = this.maxRetries) {
         let lastError;
         for (let attempt = 0; attempt <= retries; attempt++) {
@@ -51,8 +54,8 @@ class ComfyUIClient {
             catch (error) {
                 lastError = error;
                 if (attempt < retries) {
-                    // Use a microtask to yield control between retries
-                    await Promise.resolve();
+                    // Wait before retrying
+                    await this.delay(constants_1.VALIDATION.RETRY_DELAY_MS);
                 }
             }
         }
@@ -143,8 +146,8 @@ class ComfyUIClient {
                 }
                 // Reset error counter on successful request
                 consecutiveErrors = 0;
-                // Yield control between polls
-                await Promise.resolve();
+                // Wait before next poll
+                await this.delay(constants_1.VALIDATION.POLL_INTERVAL_MS);
             }
             catch (error) {
                 consecutiveErrors++;
@@ -154,8 +157,8 @@ class ComfyUIClient {
                         error: `Workflow execution failed after ${maxConsecutiveErrors} consecutive errors: ${error.message}`,
                     };
                 }
-                // Yield control between retries
-                await Promise.resolve();
+                // Wait before retrying
+                await this.delay(constants_1.VALIDATION.POLL_INTERVAL_MS);
             }
         }
         return {
