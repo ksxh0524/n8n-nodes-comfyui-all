@@ -603,10 +603,13 @@ export class ComfyUIClient {
 
     const binaryData: Record<string, any> = {};
 
+    // Fetch and process images concurrently
     if (result.images && result.images.length > 0) {
+      const imageBuffers = await this.getImageBuffers(result.images);
+
       for (let i = 0; i < result.images.length; i++) {
         const imagePath = result.images[i];
-        const imageBuffer = await this.getImageBuffer(imagePath);
+        const imageBuffer = imageBuffers[i];
 
         const fileInfo = extractFileInfo(imagePath, 'png');
         const mimeType = validateMimeType(fileInfo.mimeType, IMAGE_MIME_TYPES);
@@ -622,13 +625,15 @@ export class ComfyUIClient {
       jsonData.imageCount = result.images.length;
     }
 
+    // Fetch and process videos concurrently
     if (result.videos && result.videos.length > 0) {
+      const videoBuffers = await this.getVideoBuffers(result.videos);
+
       for (let i = 0; i < result.videos.length; i++) {
         const videoPath = result.videos[i];
+        const videoBuffer = videoBuffers[i];
         const fileInfo = extractFileInfo(videoPath, 'mp4');
         const mimeType = validateMimeType(fileInfo.mimeType, VIDEO_MIME_TYPES);
-
-        const videoBuffer = await this.getVideoBuffer(videoPath);
 
         const hasImages = result.images && result.images.length > 0;
         const binaryKey = (!hasImages && i === 0) ? outputBinaryKey : `video_${i}`;
