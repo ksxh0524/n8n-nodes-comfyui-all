@@ -1,11 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.validateUrl = validateUrl;
-exports.isPrivateNetworkAddress = isPrivateNetworkAddress;
-exports.getNetworkAddressInfo = getNetworkAddressInfo;
-exports.validateImageInput = validateImageInput;
 exports.validateComfyUIWorkflow = validateComfyUIWorkflow;
-const constants_1 = require("./constants");
 /**
  * Validate if a string is a valid HTTP/HTTPS URL
  */
@@ -17,86 +13,6 @@ function validateUrl(url) {
     catch {
         return false;
     }
-}
-/**
- * Check if a URL points to a private network address (SSRF protection)
- * Note: localhost/127.0.0.1 is allowed for local development
- */
-function isPrivateNetworkAddress(url) {
-    try {
-        const parsed = new URL(url);
-        const hostname = parsed.hostname;
-        // Skip localhost/127.0.0.1 for local development
-        if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1') {
-            return false;
-        }
-        // Check against private IP patterns
-        return constants_1.PRIVATE_IP_PATTERNS.some(pattern => pattern.test(hostname));
-    }
-    catch {
-        return false;
-    }
-}
-/**
- * Get network address information for a URL
- */
-function getNetworkAddressInfo(url) {
-    try {
-        const parsed = new URL(url);
-        const hostname = parsed.hostname;
-        return {
-            isLocalhost: hostname === 'localhost' ||
-                hostname === '127.0.0.1' ||
-                hostname === '::1',
-            isPrivate: constants_1.PRIVATE_IP_PATTERNS.some(pattern => pattern.test(hostname)),
-        };
-    }
-    catch {
-        return {
-            isLocalhost: false,
-            isPrivate: false,
-        };
-    }
-}
-/**
- * Validate and sanitize image input (check size if base64)
- */
-function validateImageInput(image) {
-    if (!image || image.trim() === '') {
-        return {
-            valid: false,
-            error: 'Image input is empty',
-        };
-    }
-    // If it's a base64 data URL, check size
-    if (image.startsWith('data:image/')) {
-        try {
-            // Extract base64 part
-            const base64Data = image.split(',')[1];
-            if (!base64Data) {
-                return {
-                    valid: false,
-                    error: 'Invalid base64 image data',
-                };
-            }
-            // Calculate size in bytes (rough estimation)
-            const sizeInBytes = Math.ceil(base64Data.length * 0.75);
-            const sizeInMB = sizeInBytes / (1024 * 1024);
-            if (sizeInMB > constants_1.VALIDATION.MAX_IMAGE_SIZE_MB) {
-                return {
-                    valid: false,
-                    error: `Image is too large. Maximum size is ${constants_1.VALIDATION.MAX_IMAGE_SIZE_MB}MB.`,
-                };
-            }
-        }
-        catch (error) {
-            return {
-                valid: false,
-                error: 'Failed to process base64 image data',
-            };
-        }
-    }
-    return { valid: true };
 }
 /**
  * Validate if a JSON string is a valid ComfyUI API format workflow
@@ -118,14 +34,12 @@ function validateComfyUIWorkflow(workflowJson) {
             error: `Invalid JSON: ${error.message}`,
         };
     }
-    // Check if it's an object with node IDs as keys
     if (typeof workflow !== 'object' || workflow === null || Array.isArray(workflow)) {
         return {
             valid: false,
             error: 'Workflow must be an object with node IDs as keys',
         };
     }
-    // Check if there's at least one node
     const nodeIds = Object.keys(workflow);
     if (nodeIds.length === 0) {
         return {
@@ -133,24 +47,20 @@ function validateComfyUIWorkflow(workflowJson) {
             error: 'Workflow must contain at least one node',
         };
     }
-    // Validate each node has the required structure
     for (const nodeId of nodeIds) {
         const node = workflow[nodeId];
-        // Each node should be an object
         if (typeof node !== 'object' || node === null) {
             return {
                 valid: false,
                 error: `Node ${nodeId} must be an object`,
             };
         }
-        // Each node should have a class_type
         if (!node.class_type || typeof node.class_type !== 'string') {
             return {
                 valid: false,
                 error: `Node ${nodeId} must have a class_type property`,
             };
         }
-        // Node can have inputs (optional)
         if (node.inputs !== undefined) {
             if (typeof node.inputs !== 'object' || node.inputs === null || Array.isArray(node.inputs)) {
                 return {
@@ -159,7 +69,6 @@ function validateComfyUIWorkflow(workflowJson) {
                 };
             }
         }
-        // Node can have widgets_values (optional)
         if (node.widgets_values !== undefined) {
             if (!Array.isArray(node.widgets_values)) {
                 return {

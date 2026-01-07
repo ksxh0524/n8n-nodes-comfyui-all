@@ -335,7 +335,6 @@ export class ComfyUi {
           const type = nodeParamConfig.type || 'text';
           const imageSource = nodeParamConfig.imageSource || 'binary';
 
-          // Get the appropriate value based on type
           const value = nodeParamConfig.value || '';
           const numberValue = nodeParamConfig.numberValue;
           const booleanValue = nodeParamConfig.booleanValue;
@@ -397,24 +396,21 @@ export class ComfyUi {
                 logger.info(`Processing image parameter for node ${nodeId}`, { paramName, imageSource, imageUrl: imageUrl || 'N/A', value: value || 'N/A' });
 
                 if (imageSource === 'url') {
-                  // Download and upload image from URL
                   if (!imageUrl) {
                     throw new NodeOperationError(this.getNode(), `Node Parameters ${i + 1}: Image URL is required when Image Input Type is set to URL.`);
                   }
 
-                  // Validate URL
                   if (!validateUrl(imageUrl)) {
                     throw new NodeOperationError(this.getNode(), `Node Parameters ${i + 1}: Invalid image URL "${imageUrl}". Must be a valid HTTP/HTTPS URL.`);
                   }
 
-                  // Download and upload the image (works for both ComfyUI and external URLs)
                   logger.info(`Downloading image from URL`, { url: imageUrl, paramName });
                   try {
                     const imageResponse = await this.helpers.httpRequest({
                       method: 'GET',
                       url: imageUrl,
                       encoding: 'arraybuffer',
-                      timeout: timeout * 1000,
+                      timeout: timeout *1000,
                       headers: {
                         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
                         'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
@@ -428,27 +424,24 @@ export class ComfyUi {
 
                     const imageBuffer = Buffer.from(imageResponse);
 
-                    // Check if buffer is empty
                     if (imageBuffer.length === 0) {
                       throw new NodeOperationError(this.getNode(), `Node Parameters ${i + 1}: Downloaded image from URL "${imageUrl}" is empty. Please check the URL and try again.`);
                     }
 
                     logger.info(`Successfully downloaded image`, { size: imageBuffer.length, url: imageUrl });
 
-                    // Extract filename from URL or generate default
                     let filename = imageUrl.split('/').pop() || `download_${Date.now()}.png`;
                     if (filename.includes('?')) {
                       filename = filename.split('?')[0];
                     }
+
                     if (!filename.match(/\.(png|jpg|jpeg|webp|gif|bmp)$/i)) {
                       filename = `download_${Date.now()}.png`;
                     }
 
                     logger.info(`Uploading image to ComfyUI`, { filename, size: imageBuffer.length });
-                    // Upload to ComfyUI and get the filename
                     const uploadedFilename = await client.uploadImage(imageBuffer, filename);
 
-                    // Set the parameter value to the uploaded filename
                     parsedValue = uploadedFilename;
                     workflow[nodeId].inputs[paramName] = parsedValue;
 
@@ -457,7 +450,7 @@ export class ComfyUi {
                     if (error instanceof NodeOperationError) {
                       throw error;
                     }
-                    // Provide more helpful error message
+
                     const statusCode = error.response?.statusCode || error.statusCode;
                     const statusMessage = error.response?.statusMessage || error.statusMessage;
                     let errorMessage = `Node Parameters ${i + 1}: Failed to download image from URL "${imageUrl}"`;
@@ -466,7 +459,6 @@ export class ComfyUi {
                     }
                     errorMessage += `. ${error.message}`;
 
-                    // Add helpful hints
                     if (statusCode === 403) {
                       errorMessage += ' Note: The URL may require authentication or block automated access. Try downloading the image manually and using Binary mode instead.';
                     } else if (statusCode === 404) {
@@ -478,7 +470,6 @@ export class ComfyUi {
                     throw new NodeOperationError(this.getNode(), errorMessage);
                   }
                 } else {
-                  // Get input binary data
                   logger.info(`Getting binary data from input`, { binaryProperty: value || 'data', paramName });
                   const inputData = this.getInputData(0);
                   const binaryPropertyName = value || 'data';
@@ -494,14 +485,12 @@ TIP: Check the previous node's "Output Binary Key" parameter. It should match "$
 
                   const binaryData = inputData[0].binary[binaryPropertyName];
 
-                  // Validate binary data
                   if (!binaryData.data || typeof binaryData.data !== 'string') {
                     throw new NodeOperationError(this.getNode(), `Node Parameters ${i + 1}: Invalid binary data for property "${binaryPropertyName}". The data field is missing or not a string.`);
                   }
 
                   const buffer = Buffer.from(binaryData.data, 'base64');
 
-                  // Validate buffer
                   if (!Buffer.isBuffer(buffer) || buffer.length === 0) {
                     throw new NodeOperationError(this.getNode(), `Node Parameters ${i + 1}: Failed to decode binary data for property "${binaryPropertyName}". The data may be corrupted. Buffer length: ${buffer.length}`);
                   }
@@ -509,10 +498,8 @@ TIP: Check the previous node's "Output Binary Key" parameter. It should match "$
                   const filename = binaryData.fileName || `upload_${Date.now()}.${binaryData.mimeType.split('/')[1] || 'png'}`;
 
                   logger.info(`Uploading binary data to ComfyUI`, { filename, size: buffer.length, mimeType: binaryData.mimeType, paramName });
-                  // Upload to ComfyUI and get the filename
                   const uploadedFilename = await client.uploadImage(buffer, filename);
 
-                  // Set the parameter value to the uploaded filename
                   parsedValue = uploadedFilename;
                   workflow[nodeId].inputs[paramName] = parsedValue;
 
@@ -553,9 +540,6 @@ TIP: Check the previous node's "Output Binary Key" parameter. It should match "$
         videoCount: json.videoCount,
       });
 
-      // Binary data is already included in the json object
-      // No need for additional processing here
-
       return [this.helpers.constructExecutionMetaData(
         [{ json, binary }],
         { itemData: { item: 0 } }
@@ -584,13 +568,11 @@ async function processResults(
     jsonData.data = result.output;
   }
 
-  // Add image URLs for AI Agent compatibility
   if (result.images && result.images.length > 0) {
     jsonData.images = result.images;
     jsonData.imageUrls = result.images.map(img => `${comfyUiUrl}${img}`);
   }
 
-  // Add video URLs for AI Agent compatibility
   if (result.videos && result.videos.length > 0) {
     jsonData.videos = result.videos;
     jsonData.videoUrls = result.videos.map(vid => `${comfyUiUrl}${vid}`);
@@ -662,8 +644,6 @@ async function processResults(
 
       const videoBuffer = await client.getVideoBuffer(videoPath);
 
-      // If there are no images, make first video outputBinaryKey for preview
-      // If there are images, all videos use video_0, video_1, etc.
       const hasImages = result.images && result.images.length > 0;
       const binaryKey = (!hasImages && i === 0) ? outputBinaryKey : `video_${i}`;
       binaryData[binaryKey] = {

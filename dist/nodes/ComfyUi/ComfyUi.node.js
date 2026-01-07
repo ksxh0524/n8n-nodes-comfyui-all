@@ -323,7 +323,6 @@ class ComfyUi {
                     const paramName = nodeParamConfig.paramName;
                     const type = nodeParamConfig.type || 'text';
                     const imageSource = nodeParamConfig.imageSource || 'binary';
-                    // Get the appropriate value based on type
                     const value = nodeParamConfig.value || '';
                     const numberValue = nodeParamConfig.numberValue;
                     const booleanValue = nodeParamConfig.booleanValue;
@@ -374,15 +373,12 @@ class ComfyUi {
                             case 'image':
                                 logger.info(`Processing image parameter for node ${nodeId}`, { paramName, imageSource, imageUrl: imageUrl || 'N/A', value: value || 'N/A' });
                                 if (imageSource === 'url') {
-                                    // Download and upload image from URL
                                     if (!imageUrl) {
                                         throw new n8n_workflow_1.NodeOperationError(this.getNode(), `Node Parameters ${i + 1}: Image URL is required when Image Input Type is set to URL.`);
                                     }
-                                    // Validate URL
                                     if (!(0, validation_1.validateUrl)(imageUrl)) {
                                         throw new n8n_workflow_1.NodeOperationError(this.getNode(), `Node Parameters ${i + 1}: Invalid image URL "${imageUrl}". Must be a valid HTTP/HTTPS URL.`);
                                     }
-                                    // Download and upload the image (works for both ComfyUI and external URLs)
                                     logger.info(`Downloading image from URL`, { url: imageUrl, paramName });
                                     try {
                                         const imageResponse = await this.helpers.httpRequest({
@@ -400,12 +396,10 @@ class ComfyUi {
                                             throw new n8n_workflow_1.NodeOperationError(this.getNode(), `Node Parameters ${i + 1}: Failed to download image from URL "${imageUrl}". The server did not return valid image data. Please check the URL and try again.`);
                                         }
                                         const imageBuffer = Buffer.from(imageResponse);
-                                        // Check if buffer is empty
                                         if (imageBuffer.length === 0) {
                                             throw new n8n_workflow_1.NodeOperationError(this.getNode(), `Node Parameters ${i + 1}: Downloaded image from URL "${imageUrl}" is empty. Please check the URL and try again.`);
                                         }
                                         logger.info(`Successfully downloaded image`, { size: imageBuffer.length, url: imageUrl });
-                                        // Extract filename from URL or generate default
                                         let filename = imageUrl.split('/').pop() || `download_${Date.now()}.png`;
                                         if (filename.includes('?')) {
                                             filename = filename.split('?')[0];
@@ -414,9 +408,7 @@ class ComfyUi {
                                             filename = `download_${Date.now()}.png`;
                                         }
                                         logger.info(`Uploading image to ComfyUI`, { filename, size: imageBuffer.length });
-                                        // Upload to ComfyUI and get the filename
                                         const uploadedFilename = await client.uploadImage(imageBuffer, filename);
-                                        // Set the parameter value to the uploaded filename
                                         parsedValue = uploadedFilename;
                                         workflow[nodeId].inputs[paramName] = parsedValue;
                                         logger.info(`Successfully uploaded image to ComfyUI`, { paramName, filename: uploadedFilename });
@@ -425,7 +417,6 @@ class ComfyUi {
                                         if (error instanceof n8n_workflow_1.NodeOperationError) {
                                             throw error;
                                         }
-                                        // Provide more helpful error message
                                         const statusCode = error.response?.statusCode || error.statusCode;
                                         const statusMessage = error.response?.statusMessage || error.statusMessage;
                                         let errorMessage = `Node Parameters ${i + 1}: Failed to download image from URL "${imageUrl}"`;
@@ -433,7 +424,6 @@ class ComfyUi {
                                             errorMessage += ` (HTTP ${statusCode} ${statusMessage || ''})`;
                                         }
                                         errorMessage += `. ${error.message}`;
-                                        // Add helpful hints
                                         if (statusCode === 403) {
                                             errorMessage += ' Note: The URL may require authentication or block automated access. Try downloading the image manually and using Binary mode instead.';
                                         }
@@ -447,7 +437,6 @@ class ComfyUi {
                                     }
                                 }
                                 else {
-                                    // Get input binary data
                                     logger.info(`Getting binary data from input`, { binaryProperty: value || 'data', paramName });
                                     const inputData = this.getInputData(0);
                                     const binaryPropertyName = value || 'data';
@@ -460,20 +449,16 @@ Available binary properties: ${availableKeys}
 TIP: Check the previous node's "Output Binary Key" parameter. It should match "${binaryPropertyName}".`);
                                     }
                                     const binaryData = inputData[0].binary[binaryPropertyName];
-                                    // Validate binary data
                                     if (!binaryData.data || typeof binaryData.data !== 'string') {
                                         throw new n8n_workflow_1.NodeOperationError(this.getNode(), `Node Parameters ${i + 1}: Invalid binary data for property "${binaryPropertyName}". The data field is missing or not a string.`);
                                     }
                                     const buffer = Buffer.from(binaryData.data, 'base64');
-                                    // Validate buffer
                                     if (!Buffer.isBuffer(buffer) || buffer.length === 0) {
                                         throw new n8n_workflow_1.NodeOperationError(this.getNode(), `Node Parameters ${i + 1}: Failed to decode binary data for property "${binaryPropertyName}". The data may be corrupted. Buffer length: ${buffer.length}`);
                                     }
                                     const filename = binaryData.fileName || `upload_${Date.now()}.${binaryData.mimeType.split('/')[1] || 'png'}`;
                                     logger.info(`Uploading binary data to ComfyUI`, { filename, size: buffer.length, mimeType: binaryData.mimeType, paramName });
-                                    // Upload to ComfyUI and get the filename
                                     const uploadedFilename = await client.uploadImage(buffer, filename);
-                                    // Set the parameter value to the uploaded filename
                                     parsedValue = uploadedFilename;
                                     workflow[nodeId].inputs[paramName] = parsedValue;
                                     logger.info(`Successfully uploaded binary data`, { paramName, filename: uploadedFilename });
@@ -506,8 +491,6 @@ TIP: Check the previous node's "Output Binary Key" parameter. It should match "$
                 imageCount: json.imageCount,
                 videoCount: json.videoCount,
             });
-            // Binary data is already included in the json object
-            // No need for additional processing here
             return [this.helpers.constructExecutionMetaData([{ json, binary }], { itemData: { item: 0 } })];
         }
         catch (error) {
@@ -528,12 +511,10 @@ async function processResults(result, client, comfyUiUrl, outputBinaryKey = 'dat
     if (result.output) {
         jsonData.data = result.output;
     }
-    // Add image URLs for AI Agent compatibility
     if (result.images && result.images.length > 0) {
         jsonData.images = result.images;
         jsonData.imageUrls = result.images.map(img => `${comfyUiUrl}${img}`);
     }
-    // Add video URLs for AI Agent compatibility
     if (result.videos && result.videos.length > 0) {
         jsonData.videos = result.videos;
         jsonData.videoUrls = result.videos.map(vid => `${comfyUiUrl}${vid}`);
@@ -591,8 +572,6 @@ async function processResults(result, client, comfyUiUrl, outputBinaryKey = 'dat
             }
             const mimeType = constants_1.VIDEO_MIME_TYPES[videoType] || 'video/mp4';
             const videoBuffer = await client.getVideoBuffer(videoPath);
-            // If there are no images, make first video outputBinaryKey for preview
-            // If there are images, all videos use video_0, video_1, etc.
             const hasImages = result.images && result.images.length > 0;
             const binaryKey = (!hasImages && i === 0) ? outputBinaryKey : `video_${i}`;
             binaryData[binaryKey] = {
