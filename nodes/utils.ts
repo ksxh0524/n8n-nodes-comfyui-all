@@ -170,3 +170,38 @@ export function validateMimeType(
 
   return normalized;
 }
+
+/**
+ * Get maximum image size in bytes
+ * @returns Maximum size in bytes (from VALIDATION.MAX_IMAGE_SIZE_MB)
+ */
+export function getMaxImageSizeBytes(): number {
+  return (VALIDATION.MAX_IMAGE_SIZE_MB as number) * 1024 * 1024;
+}
+
+/**
+ * Get maximum Base64 encoded length for an image
+ * Base64 encoding increases size by approximately 33% (4/3 ratio)
+ * @returns Maximum Base64 length in bytes
+ */
+export function getMaxBase64Length(): number {
+  return getMaxImageSizeBytes() * 4 / 3;
+}
+
+/**
+ * Format bytes to human-readable size
+ * @param bytes - Size in bytes
+ * @param decimals - Number of decimal places (default: 2)
+ * @returns Formatted size string (e.g., "1.5 MB")
+ */
+export function formatBytes(bytes: number, decimals: number = 2): string {
+  if (bytes === 0) return '0 Bytes';
+
+  const k = 1024;
+  const dm = decimals < 0 ? 0 : decimals;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+}

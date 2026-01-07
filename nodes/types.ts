@@ -106,3 +106,16 @@ export interface ParameterExtractionResult {
 
 // Re-export from ComfyUiClient for convenience
 export type { ComfyUIClientConfig, WorkflowExecution, WorkflowResult } from './ComfyUiClient';
+
+// HTTP Error interface for better type safety
+export interface HttpError extends Error {
+  code?: string;
+  response?: {
+    statusCode: number;
+    statusMessage: string;
+    body?: unknown;
+    data?: unknown;
+  };
+  statusCode?: number;
+  statusMessage?: string;
+}

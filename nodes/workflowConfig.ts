@@ -73,7 +73,7 @@ export const DEFAULT_WORKFLOW_TEMPLATE: Workflow = {
 export function getWorkflowTemplate(config?: WorkflowConfig): Workflow {
   if (config?.customTemplate) {
     try {
-      return safeJsonParse(config.customTemplate, 'Custom workflow template');
+      return safeJsonParse(config.customTemplate, 'Custom workflow template') as Workflow;
     } catch (error: unknown) {
       // Log warning when custom template fails
       const errorMsg = error instanceof Error ? error.message : String(error);
@@ -83,7 +83,7 @@ export function getWorkflowTemplate(config?: WorkflowConfig): Workflow {
 
   // Check if template is a valid non-empty object
   if (config?.template && typeof config.template === 'object' && Object.keys(config.template).length > 0) {
-    return config.template;
+    return config.template as Workflow;
   }
 
   return DEFAULT_WORKFLOW_TEMPLATE;

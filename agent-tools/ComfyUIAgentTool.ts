@@ -21,7 +21,8 @@ import {
   ParameterPattern,
   ToolInputOptions,
   ToolResult,
-  ParameterExtractionResult
+  ParameterExtractionResult,
+  HttpError
 } from '../nodes/types';
 import { getWorkflowTemplate } from '../nodes/workflowConfig';
 
@@ -345,13 +346,14 @@ async function executeComfyUIWorkflow(workflow: Workflow, comfyUiUrl?: string): 
     });
   } catch (error: unknown) {
     if (error instanceof Error) {
-      const errorCode = (error as any).code;
+      const httpError = error as HttpError;
+      const errorCode = httpError.code;
       if (errorCode === 'ECONNREFUSED') {
         throw new Error(`Failed to connect to ComfyUI server at ${url}. Please check if the server is running.`);
       } else if (errorCode === 'ETIMEDOUT' || errorCode === 'ECONNABORTED') {
         throw new Error(`Connection timeout while connecting to ComfyUI server at ${url}.`);
-      } else if ((error as any).response) {
-        throw new Error(`ComfyUI server returned error: ${(error as any).response.status} ${(error as any).response.statusText}`);
+      } else if (httpError.response) {
+        throw new Error(`ComfyUI server returned error: ${httpError.response.statusCode} ${httpError.response.statusMessage}`);
       } else {
         throw new Error(`Failed to queue workflow: ${error.message}`);
       }
@@ -379,7 +381,8 @@ async function executeComfyUIWorkflow(workflow: Workflow, comfyUiUrl?: string): 
         timeout: HISTORY_REQUEST_TIMEOUT
       });
     } catch (error: unknown) {
-      const errorCode = error instanceof Error ? (error as any).code : undefined;
+      const httpError = error instanceof Error ? error as HttpError : undefined;
+      const errorCode = httpError?.code;
       const errorMessage = error instanceof Error ? error.message : String(error);
 
       if (errorCode === 'ECONNREFUSED') {

@@ -3,7 +3,8 @@ import { VALIDATION, IMAGE_MIME_TYPES, VIDEO_MIME_TYPES } from './constants';
 import { IExecuteFunctions } from 'n8n-workflow';
 import FormData from 'form-data';
 import { Logger } from './logger';
-import { extractFileInfo, validateMimeType } from './utils';
+import { extractFileInfo, validateMimeType, getMaxImageSizeBytes, formatBytes } from './utils';
+import { HttpError } from './types';
 
 export interface ComfyUIClientConfig {
   baseUrl: string;
@@ -198,12 +199,12 @@ export class ComfyUIClient {
     } catch (error: unknown) {
       this.logger.error('Workflow execution error:', error);
       const err = error instanceof Error ? error : new Error(String(error));
-      const errObj = err as any;
+      const httpError = err as HttpError;
       this.logger.error('Error details:', {
         message: err.message,
-        statusCode: errObj.response?.statusCode || errObj.statusCode,
-        statusMessage: errObj.response?.statusMessage || errObj.statusMessage,
-        responseBody: errObj.response?.body || errObj.response?.data,
+        statusCode: httpError.response?.statusCode || httpError.statusCode,
+        statusMessage: httpError.response?.statusMessage || httpError.statusMessage,
+        responseBody: httpError.response?.body || httpError.response?.data,
       });
 
       return {
@@ -411,10 +412,10 @@ export class ComfyUIClient {
     }
 
     // Validate image size (maximum 50MB as defined in VALIDATION.MAX_IMAGE_SIZE_MB)
-    const maxSize = VALIDATION.MAX_IMAGE_SIZE_MB as number * 1024 * 1024;
+    const maxSize = getMaxImageSizeBytes();
     if (imageData.length > maxSize) {
       throw new Error(
-        `Image size (${Math.round(imageData.length / 1024 / 1024)}MB) exceeds maximum allowed size of ${VALIDATION.MAX_IMAGE_SIZE_MB as number}MB`
+        `Image size (${formatBytes(imageData.length)}) exceeds maximum allowed size of ${formatBytes(maxSize)}`
       );
     }
 
@@ -485,10 +486,10 @@ export class ComfyUIClient {
       const buffer = Buffer.from(response);
 
       // Validate buffer size (maximum 50MB as defined in VALIDATION.MAX_IMAGE_SIZE_MB)
-      const maxSize = VALIDATION.MAX_IMAGE_SIZE_MB as number * 1024 * 1024;
+      const maxSize = getMaxImageSizeBytes();
       if (buffer.length > maxSize) {
         throw new Error(
-          `Image size (${Math.round(buffer.length / 1024 / 1024)}MB) exceeds maximum allowed size of ${VALIDATION.MAX_IMAGE_SIZE_MB as number}MB`
+          `Image size (${formatBytes(buffer.length)}) exceeds maximum allowed size of ${formatBytes(maxSize)}`
         );
       }
 
@@ -520,10 +521,10 @@ export class ComfyUIClient {
       const buffer = Buffer.from(response);
 
       // Validate buffer size (maximum 50MB as defined in VALIDATION.MAX_IMAGE_SIZE_MB)
-      const maxSize = VALIDATION.MAX_IMAGE_SIZE_MB as number * 1024 * 1024;
+      const maxSize = getMaxImageSizeBytes();
       if (buffer.length > maxSize) {
         throw new Error(
-          `Video size (${Math.round(buffer.length / 1024 / 1024)}MB) exceeds maximum allowed size of ${VALIDATION.MAX_IMAGE_SIZE_MB as number}MB`
+          `Video size (${formatBytes(buffer.length)}) exceeds maximum allowed size of ${formatBytes(maxSize)}`
         );
       }
 
@@ -538,11 +539,11 @@ export class ComfyUIClient {
    */
   private formatErrorMessage(error: unknown, context: string = ''): string {
     if (error instanceof Error) {
-      const err = error as any;
-      if (err.response) {
-        return `${context}: ${err.response.statusCode} ${err.response.statusMessage}`;
-      } else if (err.request) {
-        return `${context}: No response from server`;
+      const httpError = error as HttpError;
+      if (httpError.response) {
+        return `${context}: ${httpError.response.statusCode} ${httpError.response.statusMessage}`;
+      } else if (httpError.statusCode) {
+        return `${context}: ${httpError.statusCode} ${httpError.statusMessage || ''}`;
       }
       return context ? `${context}: ${error.message}` : error.message;
     }

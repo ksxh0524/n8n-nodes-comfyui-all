@@ -3,33 +3,61 @@ import { ValidationResult } from './types';
 const MAX_JSON_SIZE = 1 * 1024 * 1024;
 const MAX_JSON_DEPTH = 100;
 
-function getObjectDepth(obj: any, currentDepth = 1): number {
+/**
+ * Calculate object depth using iteration to prevent stack overflow on large objects
+ * @param obj - Object to calculate depth for
+ * @param maxDepth - Maximum depth to calculate (default: 100)
+ * @returns Object depth or maxDepth if exceeded
+ */
+function getObjectDepth(obj: unknown, maxDepth: number = MAX_JSON_DEPTH): number {
   if (typeof obj !== 'object' || obj === null) {
-    return currentDepth;
+    return 1;
   }
-  
-  if (Array.isArray(obj)) {
-    let maxDepth = currentDepth;
-    for (const item of obj) {
-      const depth = getObjectDepth(item, currentDepth + 1);
-      if (depth > maxDepth) {
-        maxDepth = depth;
+
+  // Use iterative approach with a stack to avoid recursion stack overflow
+  const stack: Array<{ value: unknown; depth: number }> = [{ value: obj, depth: 1 }];
+  let calculatedMaxDepth = 1;
+
+  while (stack.length > 0) {
+    const { value, depth } = stack.pop()!;
+
+    // Update max depth
+    if (depth > calculatedMaxDepth) {
+      calculatedMaxDepth = depth;
+    }
+
+    // Early termination if max depth exceeded
+    if (calculatedMaxDepth > maxDepth) {
+      return calculatedMaxDepth;
+    }
+
+    // Skip if not an object or null
+    if (typeof value !== 'object' || value === null) {
+      continue;
+    }
+
+    // Don't go deeper than maxDepth
+    if (depth >= maxDepth) {
+      continue;
+    }
+
+    // Add children to stack
+    const nextDepth = depth + 1;
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        stack.push({ value: item, depth: nextDepth });
+      }
+    } else {
+      for (const item of Object.values(value)) {
+        stack.push({ value: item, depth: nextDepth });
       }
     }
-    return maxDepth;
   }
-  
-  let maxDepth = currentDepth;
-  for (const value of Object.values(obj)) {
-    const depth = getObjectDepth(value, currentDepth + 1);
-    if (depth > maxDepth) {
-      maxDepth = depth;
-    }
-  }
-  return maxDepth;
+
+  return calculatedMaxDepth;
 }
 
-export function safeJsonParse(jsonString: string, context: string = 'JSON'): any {
+export function safeJsonParse(jsonString: string, context: string = 'JSON'): unknown {
   if (typeof jsonString !== 'string') {
     throw new Error(`${context} must be a string`);
   }
@@ -42,11 +70,12 @@ export function safeJsonParse(jsonString: string, context: string = 'JSON'): any
     throw new Error(`${context} exceeds maximum size of ${MAX_JSON_SIZE / 1024 / 1024}MB (actual: ${(jsonString.length / 1024 / 1024).toFixed(2)}MB)`);
   }
 
-  let parsed;
+  let parsed: unknown;
   try {
     parsed = JSON.parse(jsonString);
-  } catch (error: any) {
-    throw new Error(`${context} is invalid: ${error.message}`);
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    throw new Error(`${context} is invalid: ${errorMessage}`);
   }
 
   const depth = getObjectDepth(parsed);
@@ -80,13 +109,13 @@ export function validateComfyUIWorkflow(workflowJson: string): ValidationResult 
     };
   }
 
-  let workflow: any;
+  let workflow: Record<string, unknown>;
   try {
-    workflow = safeJsonParse(workflowJson, 'Workflow JSON');
-  } catch (error: any) {
+    workflow = safeJsonParse(workflowJson, 'Workflow JSON') as Record<string, unknown>;
+  } catch (error: unknown) {
     return {
       valid: false,
-      error: error.message,
+      error: error instanceof Error ? error.message : String(error),
     };
   }
 
@@ -115,15 +144,17 @@ export function validateComfyUIWorkflow(workflowJson: string): ValidationResult 
       };
     }
 
-    if (!node.class_type || typeof node.class_type !== 'string') {
+    const nodeObj = node as Record<string, unknown>;
+
+    if (!nodeObj.class_type || typeof nodeObj.class_type !== 'string') {
       return {
         valid: false,
         error: `Node ${nodeId} must have a class_type property`,
       };
     }
 
-    if (node.inputs !== undefined) {
-      if (typeof node.inputs !== 'object' || node.inputs === null || Array.isArray(node.inputs)) {
+    if (nodeObj.inputs !== undefined) {
+      if (typeof nodeObj.inputs !== 'object' || nodeObj.inputs === null || Array.isArray(nodeObj.inputs)) {
         return {
           valid: false,
           error: `Node ${nodeId} inputs must be an object`,
@@ -131,8 +162,8 @@ export function validateComfyUIWorkflow(workflowJson: string): ValidationResult 
       }
     }
 
-    if (node.widgets_values !== undefined) {
-      if (!Array.isArray(node.widgets_values)) {
+    if (nodeObj.widgets_values !== undefined) {
+      if (!Array.isArray(nodeObj.widgets_values)) {
         return {
           valid: false,
           error: `Node ${nodeId} widgets_values must be an array`,

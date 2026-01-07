@@ -6,10 +6,10 @@ import {
 
 import { ComfyUIClient } from '../ComfyUiClient';
 import { validateUrl, validateComfyUIWorkflow, safeJsonParse } from '../validation';
-import { NodeParameterInput } from '../types';
-import { VALIDATION, IMAGE_MIME_TYPES, DEFAULT_OUTPUT_BINARY_KEY } from '../constants';
+import { NodeParameterInput, HttpError, Workflow } from '../types';
+import { IMAGE_MIME_TYPES, DEFAULT_OUTPUT_BINARY_KEY } from '../constants';
 import { createLogger } from '../logger';
-import { validateFilename, generateUniqueFilename } from '../utils';
+import { validateFilename, generateUniqueFilename, getMaxImageSizeBytes, getMaxBase64Length, formatBytes } from '../utils';
 
 export class ComfyUi {
   /**
@@ -314,11 +314,12 @@ export class ComfyUi {
       throw new NodeOperationError(this.getNode(), `Invalid ComfyUI workflow: ${workflowValidation.error}. Please ensure you export your workflow in API format from ComfyUI.`);
     }
 
-    let workflow;
+    let workflow: Workflow;
     try {
-      workflow = safeJsonParse(workflowJson, 'Workflow JSON');
+      workflow = safeJsonParse(workflowJson, 'Workflow JSON') as Workflow;
     } catch (error) {
-      throw new NodeOperationError(this.getNode(), `Failed to parse workflow JSON: ${error}. Please ensure the JSON is valid.`);
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      throw new NodeOperationError(this.getNode(), `Failed to parse workflow JSON: ${errorMsg}. Please ensure the JSON is valid.`);
     }
 
     const client = new ComfyUIClient({
@@ -363,7 +364,7 @@ export class ComfyUi {
           if (parameterMode === 'multiple' && parametersJson) {
             let parameters: Record<string, unknown>;
             try {
-              parameters = safeJsonParse(parametersJson, `Node Parameters ${i + 1}`);
+              parameters = safeJsonParse(parametersJson, `Node Parameters ${i + 1}`) as Record<string, unknown>;
             } catch (error: unknown) {
               const errorMsg = error instanceof Error ? error.message : String(error);
               throw new NodeOperationError(this.getNode(), `Node Parameters ${i + 1}: ${errorMsg}`);
@@ -438,11 +439,11 @@ export class ComfyUi {
                     }
 
                     // Validate downloaded image size
-                    const maxImageSize = VALIDATION.MAX_IMAGE_SIZE_MB * 1024 * 1024;
+                    const maxImageSize = getMaxImageSizeBytes();
                     if (imageBuffer.length > maxImageSize) {
                       throw new NodeOperationError(
                         this.getNode(),
-                        `Node Parameters ${i + 1}: Downloaded image size (${Math.round(imageBuffer.length / 1024 / 1024)}MB) exceeds maximum allowed size of ${VALIDATION.MAX_IMAGE_SIZE_MB}MB`
+                        `Node Parameters ${i + 1}: Downloaded image size (${formatBytes(imageBuffer.length)}) exceeds maximum allowed size of ${formatBytes(maxImageSize)}`
                       );
                     }
 
@@ -477,8 +478,9 @@ export class ComfyUi {
                       throw error;
                     }
 
-                    const statusCode = (error as any).response?.statusCode || (error as any).statusCode;
-                    const statusMessage = (error as any).response?.statusMessage || (error as any).statusMessage;
+                    const httpError = error as HttpError;
+                    const statusCode = httpError.response?.statusCode || httpError.statusCode;
+                    const statusMessage = httpError.response?.statusMessage || httpError.statusMessage;
                     const errorDetail = error instanceof Error ? error.message : String(error);
                     let errorMessage = `Node Parameters ${i + 1}: Failed to download image from URL "${imageUrl}"`;
                     if (statusCode) {
@@ -518,13 +520,13 @@ TIP: Check the previous node's "Output Binary Key" parameter. It should match "$
 
                   // Validate base64 string length before decoding
                   const base64Data = binaryData.data;
-                  const maxBase64Length = VALIDATION.MAX_IMAGE_SIZE_MB * 1024 * 1024 * 4 / 3; // Base64 is ~33% larger than binary
+                  const maxBase64Length = getMaxBase64Length();
 
                   if (base64Data.length > maxBase64Length) {
                     throw new NodeOperationError(
                       this.getNode(),
-                      `Node Parameters ${i + 1}: Binary data exceeds maximum allowed size of ${VALIDATION.MAX_IMAGE_SIZE_MB}MB. ` +
-                      `Base64 data length: ${Math.round(base64Data.length / 1024 / 1024)}MB (decoded would be ~${Math.round(base64Data.length * 0.75 / 1024 / 1024)}MB)`
+                      `Node Parameters ${i + 1}: Binary data exceeds maximum allowed size of ${formatBytes(getMaxImageSizeBytes())}. ` +
+                      `Base64 data length: ${formatBytes(base64Data.length)} (decoded would be ~${formatBytes(base64Data.length * 0.75)})`
                     );
                   }
 
@@ -553,11 +555,11 @@ TIP: Check the previous node's "Output Binary Key" parameter. It should match "$
                     throw new NodeOperationError(this.getNode(), `Node Parameters ${i + 1}: Failed to decode binary data for property "${binaryPropertyName}". The data may be corrupted. Buffer length: ${buffer.length}`);
                   }
 
-                  const maxBufferSize = VALIDATION.MAX_IMAGE_SIZE_MB * 1024 * 1024;
+                  const maxBufferSize = getMaxImageSizeBytes();
                   if (buffer.length > maxBufferSize) {
                     throw new NodeOperationError(
                       this.getNode(),
-                      `Node Parameters ${i + 1}: Decoded buffer size (${Math.round(buffer.length / 1024 / 1024)}MB) exceeds maximum allowed size of ${VALIDATION.MAX_IMAGE_SIZE_MB}MB`
+                      `Node Parameters ${i + 1}: Decoded buffer size (${formatBytes(buffer.length)}) exceeds maximum allowed size of ${formatBytes(maxBufferSize)}`
                     );
                   }
 
