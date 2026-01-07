@@ -543,13 +543,26 @@ export class ComfyUi {
                   logger.info(`Getting binary data from input`, { binaryProperty: value || 'data', paramName });
                   const inputData = this.getInputData(0);
                   const binaryPropertyName = value || 'data';
+
                   if (!inputData || !inputData[0] || !inputData[0].binary || !inputData[0].binary[binaryPropertyName]) {
                     const availableKeys = inputData && inputData[0] && inputData[0].binary ? Object.keys(inputData[0].binary).join(', ') : 'none';
                     throw new NodeOperationError(this.getNode(), `Node Parameters ${i + 1}: Binary property "${binaryPropertyName}" not found in input data. Available binary properties: ${availableKeys}. Please check the input node configuration.`);
                   }
 
                   const binaryData = inputData[0].binary[binaryPropertyName];
+
+                  // Validate binary data
+                  if (!binaryData.data || typeof binaryData.data !== 'string') {
+                    throw new NodeOperationError(this.getNode(), `Node Parameters ${i + 1}: Invalid binary data for property "${binaryPropertyName}". The data field is missing or not a string.`);
+                  }
+
                   const buffer = Buffer.from(binaryData.data, 'base64');
+
+                  // Validate buffer
+                  if (!Buffer.isBuffer(buffer) || buffer.length === 0) {
+                    throw new NodeOperationError(this.getNode(), `Node Parameters ${i + 1}: Failed to decode binary data for property "${binaryPropertyName}". The data may be corrupted. Buffer length: ${buffer.length}`);
+                  }
+
                   const filename = binaryData.fileName || `upload_${Date.now()}.${binaryData.mimeType.split('/')[1] || 'png'}`;
 
                   logger.info(`Uploading binary data to ComfyUI`, { filename, size: buffer.length, mimeType: binaryData.mimeType, paramName });
