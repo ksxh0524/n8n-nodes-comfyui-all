@@ -410,103 +410,76 @@ class ComfyUi {
                             case 'image':
                                 logger.info(`Processing image parameter for node ${nodeId}`, { paramName, imageSource, imageUrl: imageUrl || 'N/A', value: value || 'N/A' });
                                 if (imageSource === 'url') {
-                                    // Download image from URL
+                                    // Download and upload image from URL
                                     if (!imageUrl) {
-                                        throw new n8n_workflow_1.NodeOperationError(this.getNode(), `Node Parameters ${i + 1}: Image URL is required when Image Source is set to URL.`);
+                                        throw new n8n_workflow_1.NodeOperationError(this.getNode(), `Node Parameters ${i + 1}: Image URL is required when Image Input Type is set to URL.`);
                                     }
                                     // Validate URL
                                     if (!(0, validation_1.validateUrl)(imageUrl)) {
                                         throw new n8n_workflow_1.NodeOperationError(this.getNode(), `Node Parameters ${i + 1}: Invalid image URL "${imageUrl}". Must be a valid HTTP/HTTPS URL.`);
                                     }
-                                    // Check if this is a ComfyUI URL (from the same server)
-                                    const isComfyUIUrl = imageUrl.includes(comfyUiUrl) || imageUrl.includes('/view?filename=');
-                                    if (isComfyUIUrl) {
-                                        // This is a ComfyUI URL, extract filename directly
-                                        logger.info(`Detected ComfyUI URL, extracting filename directly`, { url: imageUrl, paramName });
-                                        try {
-                                            const urlObj = new URL(imageUrl);
-                                            const filename = urlObj.searchParams.get('filename');
-                                            const subfolder = urlObj.searchParams.get('subfolder') || '';
-                                            const type = urlObj.searchParams.get('type') || 'input';
-                                            logger.info(`ComfyUI URL parsed`, { filename, subfolder, type, paramName });
-                                            if (!filename) {
-                                                throw new n8n_workflow_1.NodeOperationError(this.getNode(), `Node Parameters ${i + 1}: Could not extract filename from ComfyUI URL "${imageUrl}". The URL must contain a "filename" parameter.`);
-                                            }
-                                            // ComfyUI LoadImage node expects just the filename as string
-                                            // The subfolder and type info is already encoded in ComfyUI's storage system
-                                            parsedValue = filename;
-                                            workflow[nodeId].inputs[paramName] = parsedValue;
-                                            logger.info(`Successfully extracted ComfyUI filename`, { paramName, filename, nodeId });
+                                    // Download and upload the image (works for both ComfyUI and external URLs)
+                                    logger.info(`Downloading image from URL`, { url: imageUrl, paramName });
+                                    try {
+                                        const imageResponse = await this.helpers.httpRequest({
+                                            method: 'GET',
+                                            url: imageUrl,
+                                            encoding: 'arraybuffer',
+                                            timeout: timeout * 1000,
+                                            headers: {
+                                                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                                                'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
+                                                'Accept-Language': 'en-US,en;q=0.9',
+                                            },
+                                        });
+                                        if (!imageResponse || !Buffer.isBuffer(imageResponse)) {
+                                            throw new n8n_workflow_1.NodeOperationError(this.getNode(), `Node Parameters ${i + 1}: Failed to download image from URL "${imageUrl}". The server did not return valid image data. Please check the URL and try again.`);
                                         }
-                                        catch (error) {
-                                            logger.error(`Failed to parse ComfyUI URL`, { url: imageUrl, error: error.message });
-                                            throw new n8n_workflow_1.NodeOperationError(this.getNode(), `Node Parameters ${i + 1}: Failed to parse ComfyUI URL "${imageUrl}": ${error.message}`);
+                                        const imageBuffer = Buffer.from(imageResponse);
+                                        // Check if buffer is empty
+                                        if (imageBuffer.length === 0) {
+                                            throw new n8n_workflow_1.NodeOperationError(this.getNode(), `Node Parameters ${i + 1}: Downloaded image from URL "${imageUrl}" is empty. Please check the URL and try again.`);
                                         }
+                                        logger.info(`Successfully downloaded image`, { size: imageBuffer.length, url: imageUrl });
+                                        // Extract filename from URL or generate default
+                                        let filename = imageUrl.split('/').pop() || `download_${Date.now()}.png`;
+                                        if (filename.includes('?')) {
+                                            filename = filename.split('?')[0];
+                                        }
+                                        if (!filename.match(/\.(png|jpg|jpeg|webp|gif|bmp)$/i)) {
+                                            filename = `download_${Date.now()}.png`;
+                                        }
+                                        logger.info(`Uploading image to ComfyUI`, { filename, size: imageBuffer.length });
+                                        // Upload to ComfyUI and get the filename
+                                        const uploadedFilename = await client.uploadImage(imageBuffer, filename);
+                                        // Set the parameter value to the uploaded filename
+                                        parsedValue = uploadedFilename;
+                                        workflow[nodeId].inputs[paramName] = parsedValue;
+                                        logger.info(`Successfully uploaded image to ComfyUI`, { paramName, filename: uploadedFilename });
                                     }
-                                    else {
-                                        // External URL, need to download and upload
-                                        logger.info(`Downloading image from external URL`, { url: imageUrl, paramName });
-                                        try {
-                                            const imageResponse = await this.helpers.httpRequest({
-                                                method: 'GET',
-                                                url: imageUrl,
-                                                encoding: 'arraybuffer',
-                                                timeout: timeout * 1000,
-                                                headers: {
-                                                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                                                    'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
-                                                    'Accept-Language': 'en-US,en;q=0.9',
-                                                },
-                                            });
-                                            if (!imageResponse || !Buffer.isBuffer(imageResponse)) {
-                                                throw new n8n_workflow_1.NodeOperationError(this.getNode(), `Node Parameters ${i + 1}: Failed to download image from URL "${imageUrl}". The server did not return valid image data. Please check the URL and try again.`);
-                                            }
-                                            const imageBuffer = Buffer.from(imageResponse);
-                                            // Check if buffer is empty
-                                            if (imageBuffer.length === 0) {
-                                                throw new n8n_workflow_1.NodeOperationError(this.getNode(), `Node Parameters ${i + 1}: Downloaded image from URL "${imageUrl}" is empty. Please check the URL and try again.`);
-                                            }
-                                            logger.info(`Successfully downloaded image`, { size: imageBuffer.length, url: imageUrl });
-                                            // Extract filename from URL or generate default
-                                            let filename = imageUrl.split('/').pop() || `download_${Date.now()}.png`;
-                                            if (filename.includes('?')) {
-                                                filename = filename.split('?')[0];
-                                            }
-                                            if (!filename.match(/\.(png|jpg|jpeg|webp|gif|bmp)$/i)) {
-                                                filename = `download_${Date.now()}.png`;
-                                            }
-                                            logger.info(`Uploading image to ComfyUI`, { filename, size: imageBuffer.length });
-                                            // Upload to ComfyUI and get the filename
-                                            const uploadedFilename = await client.uploadImage(imageBuffer, filename);
-                                            // Set the parameter value to the uploaded filename
-                                            parsedValue = uploadedFilename;
-                                            workflow[nodeId].inputs[paramName] = parsedValue;
-                                            logger.info(`Successfully uploaded image to ComfyUI`, { paramName, filename: uploadedFilename });
+                                    catch (error) {
+                                        if (error instanceof n8n_workflow_1.NodeOperationError) {
+                                            throw error;
                                         }
-                                        catch (error) {
-                                            if (error instanceof n8n_workflow_1.NodeOperationError) {
-                                                throw error;
-                                            }
-                                            // Provide more helpful error message
-                                            const statusCode = error.response?.statusCode || error.statusCode;
-                                            const statusMessage = error.response?.statusMessage || error.statusMessage;
-                                            let errorMessage = `Node Parameters ${i + 1}: Failed to download image from URL "${imageUrl}"`;
-                                            if (statusCode) {
-                                                errorMessage += ` (HTTP ${statusCode} ${statusMessage || ''})`;
-                                            }
-                                            errorMessage += `. ${error.message}`;
-                                            // Add helpful hints
-                                            if (statusCode === 403) {
-                                                errorMessage += ' Note: The URL may require authentication or block automated access. Try downloading the image manually and using Binary mode instead.';
-                                            }
-                                            else if (statusCode === 404) {
-                                                errorMessage += ' Note: The URL may be incorrect or the image may have been removed.';
-                                            }
-                                            else if (statusCode === 400) {
-                                                errorMessage += ' Note: The URL may be malformed or the server may be rejecting the request. Try using a different URL or download the image manually and use Binary mode.';
-                                            }
-                                            throw new n8n_workflow_1.NodeOperationError(this.getNode(), errorMessage);
+                                        // Provide more helpful error message
+                                        const statusCode = error.response?.statusCode || error.statusCode;
+                                        const statusMessage = error.response?.statusMessage || error.statusMessage;
+                                        let errorMessage = `Node Parameters ${i + 1}: Failed to download image from URL "${imageUrl}"`;
+                                        if (statusCode) {
+                                            errorMessage += ` (HTTP ${statusCode} ${statusMessage || ''})`;
                                         }
+                                        errorMessage += `. ${error.message}`;
+                                        // Add helpful hints
+                                        if (statusCode === 403) {
+                                            errorMessage += ' Note: The URL may require authentication or block automated access. Try downloading the image manually and using Binary mode instead.';
+                                        }
+                                        else if (statusCode === 404) {
+                                            errorMessage += ' Note: The URL may be incorrect or the image may have been removed.';
+                                        }
+                                        else if (statusCode === 400) {
+                                            errorMessage += ' Note: The URL may be malformed or the server may be rejecting the request. Try using a different URL or download the image manually and use Binary mode.';
+                                        }
+                                        throw new n8n_workflow_1.NodeOperationError(this.getNode(), errorMessage);
                                     }
                                 }
                                 else {
