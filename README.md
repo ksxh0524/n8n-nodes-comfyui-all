@@ -4,17 +4,32 @@
 
 [![npm version](https://badge.fury.io/js/n8n-nodes-comfyui-all.svg)](https://www.npmjs.com/package/n8n-nodes-comfyui-all)
 
-## ✨ Features
+## 📖 Table of Contents
+
+- [Overview](#-overview)
+- [Installation](#-installation)
+- [Nodes Comparison](#-nodes-comparison)
+- [Quick Start](#-quick-start)
+- [ComfyUI Tool Node](#-comfyui-tool-node)
+- [ComfyUI Node](#-comfyui-node)
+- [Advanced Usage](#-advanced-usage)
+- [Troubleshooting](#-troubleshooting)
+- [Configuration Reference](#-configuration-reference)
+
+## 🎯 Overview
+
+This package provides two specialized nodes for integrating ComfyUI with n8n:
+
+### 🌟 Key Features
 
 - 🎨 **Universal Workflow Support** - Works with any ComfyUI workflow in API format
-- 🔄 **Dynamic Parameters** - Override workflow parameters dynamically
+- 🔄 **Dynamic Parameters** - Override workflow parameters at runtime
 - 🎬 **Multi-Modal Support** - Supports images and videos for both input and output
-- 🤖 **AI Agent Ready** - Two specialized nodes for different use cases:
-  - **ComfyUI Tool** - Optimized for AI Agent workflows (URL-based image input)
-  - **ComfyUI** - Full-featured node for standard workflows (binary & URL support)
+- 🤖 **AI Agent Ready** - Optimized nodes for AI Agent and standard workflows
 - 📊 **Flexible Configuration** - JSON mode or single parameter mode
-- 🔗 **Multiple Image Input Methods** - URL, binary data
-- 🏷️ **Customizable Output** - Customize binary output property names
+- 🏷️ **Customizable Output** - Flexible output format (URLs or binary data)
+
+---
 
 ## 📦 Installation
 
@@ -34,424 +49,590 @@ npm install n8n-nodes-comfyui-all
 
 Or via n8n interface: **Settings** → **Community Nodes** → **Install** → `n8n-nodes-comfyui-all`
 
-> Restart n8n after installation.
+> ⚠️ **Restart n8n after installation**
 
-## 🚀 Quick Start
+---
 
-## 📚 Nodes Overview
+## 🔍 Nodes Comparison
 
-This package provides two specialized nodes for different use cases:
+### Quick Reference
 
-### 1. ComfyUI Tool Node 🤖
-
-**Designed for: AI Agent Workflows**
-
-- **Image Input**: URL only (prevents LLM context overflow)
-- **Use Case**: When called by AI Agent as a tool
-- **Advantages**:
-  - Lightweight - URLs are short and don't bloat LLM context
-  - Simple - No complex binary handling needed
-  - Efficient - Automatic download and upload to ComfyUI
-
-**Configuration:**
-```
-ComfyUI URL: http://127.0.0.1:8188
-Workflow JSON: [Your ComfyUI workflow]
-Load Image Node ID: 107
-Image URL: https://example.com/image.png  ← URL only!
-```
-
-**Example for AI Agents:**
-```javascript
-// AI Agent passes:
-{
-  "imageUrl": "https://example.com/input.png",
-  "prompt": "Transform this image to oil painting style"
-}
-```
-
-### 2. ComfyUI Node 🔧
-
-**Designed for: Standard Workflows**
-
-- **Image Input**: Binary data OR URL
-- **Use Case**: Regular n8n workflows with binary data flow
-- **Advantages**:
-  - Flexible - Supports both binary and URL inputs
-  - Powerful - Full parameter override capabilities
-  - Compatible - Works with n8n's binary data system
-
-**Configuration:**
-```
-ComfyUI URL: http://127.0.0.1:8188
-Workflow JSON: [Your ComfyUI workflow]
-
-Node Parameters:
-  Option 1 - Binary Mode:
-    Type: Image
-    Image Input Type: Binary
-    Value: data
-
-  Option 2 - URL Mode:
-    Type: Image
-    Image Input Type: URL
-    Image URL: https://example.com/image.png
-```
+| Feature | ComfyUI Tool 🤖 | ComfyUI 🔧 |
+|---------|----------------|------------|
+| **Primary Use Case** | AI Agent Workflows | Standard Workflows |
+| **Image Input** | URL only | Binary or URL |
+| **Binary Output** | ❌ No | ✅ Yes |
+| **URL Output** | ✅ Yes | ✅ Yes |
+| **Parameter Overrides** | ✅ Yes | ✅ Yes (Advanced) |
+| **LLM Context** | ✅ Lightweight (URLs only) | ⚠️ Not optimized |
+| **Node Configuration** | Simple | Advanced |
 
 ### Which Node Should I Use?
 
-| Scenario | Use Node | Image Input | Example |
-|----------|----------|-------------|---------|
-| **AI Agent calling ComfyUI** | ComfyUI Tool | URL | `imageUrl: "https://..."` |
-| **Chat Interface with images** | ComfyUI Tool | URL | User uploads image → gets URL |
-| **Standard workflow** | ComfyUI | Binary or URL | HTTP Request → Binary → ComfyUI |
-| **File processing workflow** | ComfyUI | Binary | Read Binary File → ComfyUI |
-| **Webhook with images** | ComfyUI | Binary | Webhook → ComfyUI |
+```
+┌─────────────────────────────────────────────────────────────┐
+│  Your Scenario                                           │
+└─────────────────────────────────────────────────────────────┘
+                            │
+            ┌───────────────┴───────────────┐
+            │                               │
+     Using AI Agent?              Standard Workflow?
+            │                               │
+            ▼                               ▼
+    ┌───────────────┐              ┌──────────────┐
+    │ ComfyUI Tool  │              │   ComfyUI    │
+    └───────────────┘              └──────────────┘
+            │                               │
+     Image Input: URL              Image Input:
+                                    • Binary
+                                    • URL
+```
 
-### 1. Prerequisites
+#### Use ComfyUI Tool When:
+- ✅ Building AI Agent workflows
+- ✅ Integrating with chat interfaces
+- ✅ Processing images from URLs
+- ✅ Minimizing LLM token usage
+- ✅ Need simple URL-based configuration
 
-- ComfyUI server running (default: `http://127.0.0.1:8188`)
-- n8n instance (version 2.x or higher)
+#### Use ComfyUI Node When:
+- ✅ Building standard n8n workflows
+- ✅ Processing binary data from previous nodes
+- ✅ Working with file uploads/webhooks
+- ✅ Need advanced parameter configuration
+- ✅ Want binary output for further processing
 
-### 2. Create Your Workflow in ComfyUI
+---
 
-1. Design your workflow in ComfyUI
-2. Click **Save (API Format)** to export
+## 🚀 Quick Start
+
+### Prerequisites
+
+- ✅ ComfyUI server running (default: `http://127.0.0.1:8188`)
+- ✅ n8n instance (version 2.x or higher)
+- ✅ Basic understanding of ComfyUI workflows
+
+### 3-Step Setup
+
+#### 1. Create Your Workflow in ComfyUI
+
+```
+In ComfyUI:
+1. Design your workflow
+2. Click "Save (API Format)"
 3. Copy the generated JSON
+```
 
-### 3. Configure n8n Node
+#### 2. Add Node to n8n
 
-1. Add **ComfyUI** node to your n8n workflow
-2. Set **ComfyUI URL**: `http://127.0.0.1:8188`
-3. Paste your **Workflow JSON**
-4. Optionally configure **Node Parameters**
+```
+In n8n:
+1. Add either "ComfyUI Tool" or "ComfyUI" node
+2. Paste your Workflow JSON
+3. Configure ComfyUI URL
+4. (Optional) Set up parameters
+```
 
-## 📖 Usage
+#### 3. Execute
 
-### Basic Example: Text to Image
+```
+Run your workflow and enjoy! 🎉
+```
 
-**Node Configuration:**
-- **ComfyUI URL**: `http://127.0.0.1:8188`
-- **Workflow JSON**: Your ComfyUI workflow in API format
+---
 
-**Optional Node Parameters (Single Parameter Mode):**
-- Node ID: `6` (your CLIP text node)
-- Parameter Name: `text`
-- Type: `Text`
-- Value: `a beautiful landscape, high quality`
+## 🤖 ComfyUI Tool Node
 
-### Parameter Configuration Modes
+### Overview
 
-#### 1. Multiple Parameters Mode (JSON)
+**Optimized for AI Agent workflows** - URL-based image input, simple configuration, LLM-friendly.
 
-Configure multiple parameters at once using JSON:
+### Why URL-Based Input?
+
+```
+❌ Base64 Image:
+   - Size: ~100KB - 1MB per image
+   - Tokens: ~130K - 1.3M tokens
+   - Result: 💥 Explodes LLM context
+
+✅ Image URL:
+   - Size: ~100 bytes
+   - Tokens: ~30 tokens
+   - Result: ✅ Lightweight and efficient
+```
+
+### Configuration
+
+#### Basic Setup
+
+```
+┌─────────────────────────────────────────────────┐
+│ ComfyUI Tool                                    │
+├─────────────────────────────────────────────────┤
+│ ComfyUI URL:     http://127.0.0.1:8188         │
+│ Workflow JSON:   [Your ComfyUI workflow]        │
+│ Timeout:         300                            │
+│ Load Image Node ID:                             │
+│   (for image workflows)                         │
+│ Image URL:       [URL or {{ $json.imageUrl }}] │
+└─────────────────────────────────────────────────┘
+```
+
+#### Parameters
+
+| Parameter | Description | Example |
+|-----------|-------------|---------|
+| **ComfyUI URL** | ComfyUI server address | `http://127.0.0.1:8188` |
+| **Workflow JSON** | ComfyUI workflow in API format | `{ "3": {...} }` |
+| **Timeout** | Max wait time (seconds) | `300` (5 min) |
+| **Load Image Node ID** | LoadImage node ID for image workflows | `107` |
+| **Image URL** | URL of image to process | `https://...` |
+| **Parameter Overrides** | Override workflow parameters | See below |
+
+### Output Format
 
 ```json
 {
-  "width": 1024,
-  "height": 1024,
-  "batch_size": 1,
-  "seed": 12345
+  "success": true,
+  "imageUrls": [
+    "http://127.0.0.1:8188/view?filename=ComfyUI_00001.png"
+  ],
+  "videoUrls": [],
+  "imageCount": 1,
+  "videoCount": 0
 }
 ```
 
-#### 2. Single Parameter Mode
+### AI Agent Integration Example
 
-Configure one parameter at a time with type validation:
+```
+Workflow:
+[Chat Input] → [AI Agent] → [ComfyUI Tool]
+                          ↓
+                    Passes imageUrl
+                          ↓
+                    Downloads image
+                          ↓
+                    Processes in ComfyUI
+                          ↓
+                    Returns result URLs
+```
 
-- **Parameter Name**: `steps`
-- **Type**: `Number`
-- **Value**: `25`
+**Chat Example:**
 
-### Image Input Options
+```
+User: Transform this image (https://example.com/photo.png)
+       to oil painting style
 
-The node supports two methods for uploading images to ComfyUI:
+AI Agent:
+1. Extracts URL from message
+2. Calls ComfyUI Tool
+3. ComfyUI Tool downloads image
+4. Processes in ComfyUI
+5. Returns result URLs
+6. AI Agent shows result to user
+```
+
+---
+
+## 🔧 ComfyUI Node
+
+### Overview
+
+**Full-featured node for standard workflows** - Supports binary and URL inputs with advanced configuration.
+
+### Configuration
+
+#### Basic Setup
+
+```
+┌─────────────────────────────────────────────────┐
+│ ComfyUI                                         │
+├─────────────────────────────────────────────────┤
+│ ComfyUI URL:     http://127.0.0.1:8188         │
+│ Workflow JSON:   [Your ComfyUI workflow]        │
+│ Timeout:         300                            │
+│ Output Binary Key: data                         │
+├─────────────────────────────────────────────────┤
+│ Node Parameters:                                │
+│   [Multiple parameter configurations]            │
+└─────────────────────────────────────────────────┘
+```
+
+#### Parameters
+
+| Parameter | Description | Example |
+|-----------|-------------|---------|
+| **ComfyUI URL** | ComfyUI server address | `http://127.0.0.1:8188` |
+| **Workflow JSON** | ComfyUI workflow in API format | `{ "3": {...} }` |
+| **Timeout** | Max wait time (seconds) | `300` (5 min) |
+| **Output Binary Key** | First output binary property name | `data`, `image` |
+| **Node Parameters** | Override workflow parameters | See below |
+
+### Image Input Methods
 
 #### Method 1: Binary Data
 
-Upload images from n8n binary data:
+```
+Node Parameters:
+  Node ID: 107
+  Parameter Mode: Single Parameter
+  Parameter Name: image
+  Type: Image
+  Image Input Type: Binary  ← Binary mode
+  Value: data
+```
 
-- **Type**: `Image`
-- **Image Input Type**: `Binary`
-- **Value**: Binary property name (e.g., `data`, `image`, `file`)
+**Use when:** Previous node outputs binary data (HTTP Request, Webhook, etc.)
 
 #### Method 2: URL
 
-Download and upload images from a URL:
+```
+Node Parameters:
+  Node ID: 107
+  Parameter Mode: Single Parameter
+  Parameter Name: image
+  Type: Image
+  Image Input Type: URL  ← URL mode
+  Image URL: https://example.com/image.png
+```
 
-- **Type**: `Image`
-- **Image Input Type**: `URL`
-- **Image URL**: Full URL of the image (e.g., `https://example.com/image.png`)
+**Use when:** Downloading from web or using URL
 
-The node will automatically download the image from the URL and upload it to ComfyUI.
+### Output Format
 
-### Custom Output Binary Key
-
-By default, the first output image/video uses `data` as the binary property name. You can customize this:
-
-- **Output Binary Key**: Property name for the first output (e.g., `image`, `output`, `result`)
-- Default: `data`
-
-**Example:**
 ```json
 {
+  "json": {
+    "success": true,
+    "imageCount": 1,
+    "imageUrls": ["http://..."],
+    "data": { ... }
+  },
   "binary": {
-    "myImage": { "data": "...", "mimeType": "image/png" }
+    "data": {
+      "data": "base64...",
+      "mimeType": "image/png",
+      "fileName": "ComfyUI_00001.png"
+    }
   }
 }
 ```
 
-## 🤖 AI Agent Integration
+---
 
-### Using ComfyUI Tool with AI Agents
+## 📚 Advanced Usage
 
-The **ComfyUI Tool** node is specifically optimized for AI Agent workflows.
+### 1. Text-to-Image with Dynamic Prompts
 
-#### Why URL-Based Input?
-
-AI Agents work best with **URL-based image input** because:
-- ✅ **Prevents Context Overflow** - URLs are short, unlike base64 strings (can be 100x-1000x smaller)
-- ✅ **Faster Processing** - Less data to pass to the LLM
-- ✅ **Better Performance** - Reduces token usage and costs
-
-#### Quick Setup
-
-**Step 1: Create AI Agent**
-1. Add **OpenAI Conversational Agent** node
-2. Configure Chat Model (GPT-4/GPT-3.5)
-3. Add Memory (optional but recommended)
-
-**Step 2: Add ComfyUI Tool**
-1. Click AI Agent node
-2. In **Tools** section, click **+ Add Tool**
-3. Search and select **ComfyUI Tool**
-4. Configure:
-   - **ComfyUI URL**: `http://127.0.0.1:8188`
-   - **Workflow JSON**: Your ComfyUI workflow (API format)
-   - **Load Image Node ID**: Your LoadImage node ID (e.g., `107`)
-   - **Image URL**: `{{ $json.imageUrl }}` (dynamic from chat input)
-
-**Step 3: Start Chatting**
-Execute workflow and start conversing!
-
-#### Example Conversations
-
-**Basic Image Generation:**
-
-**User:**
-```
-Generate a picture of a cute cat sitting on a fence
-```
-
-**AI:**
-```
-I'll generate that for you.
-[Executes ComfyUI with prompt: "a cute cat sitting on a fence"]
-Done! Here's the image.
-```
-
-**With Parameters:**
-
-**User:**
-```
-Create a cyberpunk city, size:1024x768, steps:30
-```
-
-**Supported Parameters:**
-- `size:WIDTHxHEIGHT` - Image dimensions
-- `steps:N` - Sampling steps
-- `cfg:N` - CFG strength
-- `seed:N` - Random seed
-- `negative:TEXT` - Negative prompt
-
-**Negative Prompts:**
-
-**User:**
-```
-Draw a beautiful sunset, negative: blurry, low quality
-```
-
-### Configuring Node Parameters for AI Agent
-
-In the ComfyUI node, configure parameter overrides:
-
-- **Node ID**: `6` (your CLIP text node)
-- **Parameter Mode**: Single Parameter
-- **Parameter Name**: `text`
-- **Type**: Text
-- **Value**: [Leave empty - AI Agent will fill this]
-
-### Tool Mode Output Format
-
-When used as an AI Agent tool, ComfyUI returns both binary data and URL information:
-
-**Binary Output:**
-- Images are returned as binary data (base64-encoded) in the `binary` object
-- First image: `binary.data`
-- Additional images: `binary.image_1`, `binary.image_2`, etc.
-- Videos: `binary.video_0`, `binary.video_1`, etc.
-
-**JSON Output (with URLs):**
-- `json.images`: Array of image paths
-- `json.imageUrls`: Array of complete image URLs (e.g., `http://127.0.0.1:8188/view?filename=...`)
-- `json.videos`: Array of video paths
-- `json.videoUrls`: Array of complete video URLs
-- `json.imageCount`: Number of images generated
-- `json.videoCount`: Number of videos generated
-
-This ensures compatibility with both workflow mode (binary data) and tool mode (URLs for AI Agent).
-
-### Best Practices
-
-**1. Clear Prompts**
-
-**Good:** "Generate a landscape painting of mountains at sunset"
-
-**Bad:** "Make a picture"
-
-**2. Use Specific Parameters**
-
-**Good:** "Create a portrait, size:512x768, steps:25"
-
-**Bad:** "Create a high-quality portrait"
-
-**3. Negative Prompts**
-
-Always use negative prompts for better quality:
+**ComfyUI Node Setup:**
 
 ```
-A beautiful landscape, negative: blurry, distorted, low quality
+Node Parameters:
+  Node ID: 6 (CLIP Text Encode)
+  Parameter Mode: Single Parameter
+  Parameter Name: text
+  Type: Text
+  Value: {{ $json.prompt }}
 ```
 
-### Advanced Usage
-
-#### Image Processing with ComfyUI Tool
-
-**Image Editing with AI Agent:**
-
-**User:**
-```
-Transform this image (https://example.com/photo.png) to oil painting style
+**Input:**
+```json
+{
+  "prompt": "a beautiful landscape at sunset"
+}
 ```
 
-**Workflow:**
-1. User provides image URL in chat
-2. AI Agent extracts URL
-3. Calls **ComfyUI Tool** with:
-   - `imageUrl`: `https://example.com/photo.png`
-   - Parameter override for style prompt
-4. ComfyUI Tool downloads image and processes it
-5. Returns result to user
+### 2. Image-to-Image Processing
 
-**Style Transfer Workflow:**
+**ComfyUI Tool Setup:**
 
 ```
-[Chat Input] → [AI Agent] → [ComfyUI Tool]
-                          ↓
-                    Downloads image from URL
-                          ↓
-                    Uploads to ComfyUI
-                          ↓
-                    Processes workflow
-                          ↓
-                    Returns result
+Load Image Node ID: 107
+Image URL: {{ $json.imageUrl }}
+Parameter Overrides:
+  - Node ID: 6
+    Param Path: inputs.text
+    Value: {{ $json.prompt }}
 ```
 
-**Multi-Modal Workflows:**
-
-**User:**
+**Input:**
+```json
+{
+  "imageUrl": "https://example.com/input.png",
+  "prompt": "Transform to oil painting style"
+}
 ```
-Generate an image of a futuristic city, then write a poem about it
+
+### 3. Multiple Parameters Override
+
+**ComfyUI Node Setup:**
+
+```
+Node Parameters:
+  Node ID: 3
+  Parameter Mode: Multiple Parameters
+  Parameters JSON:
+    {
+      "width": 1024,
+      "height": 1024,
+      "steps": 30,
+      "cfg": 7.5,
+      "seed": 123456
+    }
 ```
 
-AI Agent:
-1. Calls ComfyUI Tool to generate image
-2. Calls Chat Model to write poem
-3. Returns both results
+### 4. Video Generation
 
-#### Best Practices for URL Input
+**Setup:** Similar to image generation, just use a video workflow in ComfyUI.
 
-**1. Use Publicly Accessible URLs**
+**Output:**
+```json
+{
+  "videoUrls": ["http://127.0.0.1:8188/view?filename=video.mp4"],
+  "videoCount": 1
+}
+```
+
+---
+
+## 🤖 AI Agent Workflows
+
+### Example 1: Image Generation Chat
+
+```
+Workflow:
+[Chat Interface] → [AI Agent] → [ComfyUI Tool]
+
+Configuration:
+  - Model: GPT-4
+  - Tools: ComfyUI Tool
+  - Workflow: Text-to-Image
+
+Conversation:
+  User: "Generate a picture of a cute cat"
+  AI: [Calls ComfyUI Tool]
+  AI: "Here's your image! 😊"
+```
+
+### Example 2: Image Editing
+
+```
+Workflow:
+[Chat Interface] → [AI Agent] → [ComfyUI Tool]
+
+Configuration:
+  - ComfyUI Tool:
+    - Workflow: Image-to-Image
+    - Load Image Node ID: 107
+    - Image URL: {{ $json.imageUrl }}
+
+Conversation:
+  User: "Transform this image (URL) to watercolor style"
+  AI: [Extracts URL, downloads image, processes in ComfyUI]
+  AI: "Done! Here's the watercolor version 🎨"
+```
+
+### Example 3: Multi-Modal Workflow
+
+```
+Workflow:
+[Chat Input] → [AI Agent] → [ComfyUI Tool] → [Chat Model]
+                          ↓                           ↓
+                      Generate Image               Write Poem
+                          ↓                           ↓
+                      Return Combined Result
+
+Conversation:
+  User: "Create an image of a futuristic city
+        and write a poem about it"
+
+  AI: [1. Generates image via ComfyUI Tool]
+      [2. Writes poem about the image]
+      [3. Returns both to user]
+```
+
+---
+
+## ⚙️ Best Practices
+
+### 1. URL Selection
 
 ✅ **Good:**
 ```
 https://cdn.example.com/images/photo.png
 https://storage.googleapis.com/bucket/image.jpg
+https://s3.amazonaws.com/bucket/photo.png
 ```
 
-❌ **Bad:**
+❌ **Avoid:**
 ```
-file:///local/path/image.png  ← Local files won't work
-http://localhost:8080/image.png  ← Private URLs
+file:///local/path/image.png  ← Not accessible
+http://localhost:8080/image.png  ← Private network
 ```
 
-**2. Ensure URLs Are Persistent**
+### 2. Parameter Naming
 
-Make sure the image URLs remain accessible during the workflow execution.
+✅ **Use Clear Names:**
+```
+Node ID: 6
+Parameter Name: text  ← Matches ComfyUI node input
+```
 
-**3. Handle Large Images**
+❌ **Vague Names:**
+```
+Node ID: node_6
+Parameter Name: param1  ← Unclear what it does
+```
 
-For large images (>10MB), consider:
-- Using image optimization before passing URL
-- Increasing timeout setting in ComfyUI Tool node
+### 3. Timeout Settings
 
-### Troubleshooting
+```
+Simple workflows:      60-120 seconds
+Complex workflows:     300-600 seconds
+Video generation:      600-1800 seconds
+```
 
-**AI Agent Doesn't Call ComfyUI**
+### 4. Error Handling
 
-**Check:**
-1. ComfyUI tool added to Tools list?
-2. Workflow JSON configured?
-3. ComfyUI server running?
+```javascript
+// Always validate inputs
+if (!workflowJson) {
+  throw new Error('Workflow JSON is required');
+}
 
-**Images Don't Match Prompts**
+// Check ComfyUI server availability
+// Use appropriate timeouts
+// Handle network errors gracefully
+```
 
-**Check:**
-1. Correct node ID (e.g., `6` for CLIP text)
-2. Parameter name matches workflow (`text`)
-3. Workflow uses dynamic text input
+---
 
-## 🔧 Configuration Reference
+## 🔧 Troubleshooting
 
-### ComfyUI Tool Node Configuration
+### Common Issues
 
-| Field | Description | Example |
+#### ❌ "Invalid ComfyUI URL"
+
+**Solution:**
+- Check ComfyUI is running
+- Verify URL format: `http://127.0.0.1:8188`
+- Try accessing ComfyUI in browser first
+
+#### ❌ "Workflow execution timeout"
+
+**Solutions:**
+- Increase timeout value
+- Check workflow complexity
+- Verify ComfyUI server performance
+- Check ComfyUI logs for errors
+
+#### ❌ "Node ID not found in workflow"
+
+**Solutions:**
+- Open workflow JSON
+- Find the correct node ID
+- Note: IDs are strings like "6", "13", not numbers
+
+#### ❌ "Failed to download image from URL"
+
+**Solutions:**
+- Verify URL is publicly accessible
+- Check URL doesn't require authentication
+- Ensure URL returns image (not HTML)
+- Test URL in browser first
+
+#### ❌ "AI Agent doesn't call ComfyUI"
+
+**Solutions:**
+- Ensure ComfyUI Tool is added to Agent's tools
+- Check tool description is clear
+- Verify workflow JSON is configured
+- Check Agent logs
+
+---
+
+## 📖 Configuration Reference
+
+### ComfyUI Tool Node
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| **ComfyUI URL** | String | ✅ | `http://127.0.0.1:8188` | ComfyUI server address |
+| **Workflow JSON** | String | ✅ | - | ComfyUI workflow in API format |
+| **Timeout** | Number | ❌ | `300` | Max wait time (seconds) |
+| **Load Image Node ID** | String | ❌ | - | LoadImage node ID for image workflows |
+| **Image URL** | String | ❌ | - | URL of image to process |
+| **Parameter Overrides** | Collection | ❌ | - | Override workflow parameters |
+
+### ComfyUI Node
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| **ComfyUI URL** | String | ✅ | `http://127.0.0.1:8188` | ComfyUI server address |
+| **Workflow JSON** | String | ✅ | - | ComfyUI workflow in API format |
+| **Timeout** | Number | ❌ | `300` | Max wait time (seconds) |
+| **Output Binary Key** | String | ❌ | `data` | First output binary property name |
+| **Node Parameters** | Collection | ❌ | - | Override workflow parameters |
+
+### Node Parameter Fields
+
+| Field | Description | Options |
 |-------|-------------|---------|
-| **ComfyUI URL** | URL of your ComfyUI server | `http://127.0.0.1:8188` |
-| **Workflow JSON** | ComfyUI workflow in API format | `{ "3": { "inputs": {...}, "class_type": "KSampler" } }` |
-| **Timeout** | Maximum wait time in seconds | `300` (5 minutes) |
-| **Load Image Node ID** | Node ID of LoadImage node for image input workflows | `107` |
-| **Image URL** | URL of image to process (for AI Agent) | `https://example.com/image.png` |
-| **Parameter Overrides** | Override specific workflow parameters | See below |
+| **Node ID** | Node ID from workflow JSON | e.g., `6`, `13`, `107` |
+| **Parameter Mode** | How to configure parameters | Single / Multiple |
+| **Type** | Parameter data type | Text / Number / Boolean / Image |
+| **Image Input Type** | How to input image (when Type=Image) | Binary / URL |
+| **Parameter Name** | Parameter to override (single mode) | e.g., `text`, `seed`, `steps` |
+| **Parameters JSON** | JSON object with parameters (multiple mode) | `{"width": 1024}` |
+| **Value** | Value to set | Text / Number / Boolean |
 
-### ComfyUI Node Configuration
-
-| Field | Description | Example |
-|-------|-------------|---------|
-| **ComfyUI URL** | URL of your ComfyUI server | `http://127.0.0.1:8188` |
-| **Workflow JSON** | ComfyUI workflow in API format | `{ "3": { "inputs": {...}, "class_type": "KSampler" } }` |
-| **Timeout** | Maximum wait time in seconds | `300` (5 minutes) |
-| **Output Binary Key** | Property name for first output binary data | `data` |
-| **Node Parameters** | Override workflow parameters | See below |
-
-#### Node Parameter Fields
-
-| Field | Description |
-|-------|-------------|
-| **Node ID** | The node ID in your workflow (e.g., `6`, `13`) |
-| **Parameter Mode** | Single Parameter or Multiple Parameters (JSON) |
-| **Type** | Data type: Text, Number, Boolean, or Image |
-| **Image Input Type** | (When Type=Image) Binary or URL |
-| **Image URL** | (When Image Input Type=URL) URL to download image from |
-| **Parameter Name** | (Single mode) Parameter name to override |
-| **Parameters JSON** | (Multiple mode) JSON object with parameters |
-| **Value** | Value to set (varies by Type) |
+---
 
 ## 💡 Tips
 
-- **First time**: Start with a simple text-to-image workflow
-- **Parameter overrides**: Use Node Parameters instead of modifying workflow JSON
-- **Seed control**: Fixed seeds produce reproducible results
-- **Optimization**: 20-30 sampling steps are usually sufficient
-- **Image input**: Use Image type with Binary source for n8n binary data, or URL source to download from web
-- **Output naming**: Customize Output Binary Key to match your workflow's expected property names
+### 🎯 Performance
+
+- Start with simple workflows to test setup
+- Use appropriate timeout values
+- Monitor ComfyUI resource usage
+- Use specific prompts for better results
+
+### 🔒 Security
+
+- Don't expose ComfyUI server publicly
+- Use secure URLs for images
+- Validate user inputs in production
+- Keep workflow JSON private if needed
+
+### 📝 Workflow Design
+
+- Document your ComfyUI workflows
+- Use consistent node IDs
+- Test workflows in ComfyUI first
+- Keep workflows simple and modular
+
+---
+
+## 🤝 Contributing
+
+Contributions are welcome! Please feel free to submit issues or pull requests.
+
+## 📄 License
+
+MIT License - see LICENSE file for details
+
+## 🙏 Acknowledgments
+
+- [ComfyUI](https://github.com/comfyanonymous/ComfyUI) - Powerful UI for Stable Diffusion
+- [n8n](https://n8n.io) - Workflow automation tool
+
+---
+
+**Need Help?**
+
+- 📖 Check the [Documentation](https://docs.n8n.io)
+- 💬 Join the [Community](https://community.n8n.io)
+- 🐛 Report [Issues](https://github.com/your-repo/issues)
+
+**Happy Automating! 🚀**
