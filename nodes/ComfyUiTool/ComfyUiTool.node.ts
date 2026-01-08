@@ -13,7 +13,7 @@ import {
 } from 'n8n-workflow';
 
 import { ComfyUIClient } from '../ComfyUiClient';
-import { validateUrl, safeJsonParse, validateOutputBinaryKey } from '../validation';
+import { validateUrl, safeJsonParse } from '../validation';
 import { Workflow, JsonData } from '../types';
 import { createLogger } from '../logger';
 import {
@@ -71,13 +71,6 @@ export class ComfyUiTool {
           seed: 123456789,
         },
       },
-      binary: {
-        data: {
-          data: 'base64_encoded_image_data',
-          mimeType: 'image/png',
-          fileName: 'ComfyUI_00001.png',
-        },
-      },
     },
     properties: [
       {
@@ -96,14 +89,6 @@ export class ComfyUiTool {
         description: 'Maximum time to wait for image generation (in seconds). Default: 120 (2 minutes).',
         minValue: 10,
         maxValue: 600,
-      },
-      {
-        displayName: 'Output Binary Key',
-        name: 'outputBinaryKey',
-        type: 'string',
-        default: 'data',
-        description: 'Property name for the output binary data (e.g., "data", "image", "output")',
-        placeholder: 'data',
       },
       {
         displayName: 'Default Negative Prompt',
@@ -180,7 +165,6 @@ export class ComfyUiTool {
     // Get node parameters
     const comfyUiUrl = this.getNodeParameter('comfyUiUrl', 0) as string;
     const timeout = this.getNodeParameter('timeout', 0) as number;
-    const outputBinaryKey = this.getNodeParameter('outputBinaryKey', 0) as string;
     const defaultNegativePrompt = this.getNodeParameter('defaultNegativePrompt', 0) as string;
 
     const advancedOptions = this.getNodeParameter('advancedOptions', 0) as {
@@ -203,9 +187,6 @@ export class ComfyUiTool {
     if (!validateUrl(comfyUiUrl)) {
       throw new NodeOperationError(this.getNode(), 'Invalid ComfyUI URL. Must be a valid HTTP/HTTPS URL.');
     }
-
-    // Validate output binary key
-    validateOutputBinaryKey(outputBinaryKey);
 
     // Get input data
     const inputData = this.getInputData();
@@ -316,12 +297,16 @@ export class ComfyUiTool {
         throw new NodeOperationError(this.getNode(), `Failed to generate image: ${result.error}`);
       }
 
-      // Process results
-      const { json, binary } = await client.processResults(result, outputBinaryKey);
+      // Only return URLs without downloading (for AI Agent)
+      const imageUrls = result.images ? result.images.map(img => `${comfyUiUrl}${img}`) : [];
+      const videoUrls = result.videos ? result.videos.map(vid => `${comfyUiUrl}${vid}`) : [];
 
-      // Add metadata to JSON output
       const enhancedJson: JsonData = {
-        ...json,
+        success: true,
+        imageUrls,
+        videoUrls,
+        imageCount: result.images?.length || 0,
+        videoCount: result.videos?.length || 0,
         prompt: params.prompt,
         mode: mode,
         parameters: {
@@ -335,12 +320,13 @@ export class ComfyUiTool {
       } as JsonData;
 
       logger.info('Image generation completed successfully', {
-        imageCount: json.imageCount,
+        imageCount: enhancedJson.imageCount,
         mode,
       });
 
+      // Return result (no binary data for AI Agent)
       return [this.helpers.constructExecutionMetaData(
-        [{ json: enhancedJson, binary }],
+        [{ json: enhancedJson }],
         { itemData: { item: 0 } }
       )];
     } catch (error) {
