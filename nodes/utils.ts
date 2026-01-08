@@ -236,6 +236,14 @@ export function getMaxImageSizeBytes(): number {
 }
 
 /**
+ * Get maximum video size in bytes
+ * @returns Maximum size in bytes (from VALIDATION.MAX_VIDEO_SIZE_MB)
+ */
+export function getMaxVideoSizeBytes(): number {
+  return (VALIDATION.MAX_VIDEO_SIZE_MB as number) * 1024 * 1024;
+}
+
+/**
  * Get maximum Base64 encoded length for an image
  * Base64 encoding increases size by approximately 33% (4/3 ratio)
  * @returns Maximum Base64 length in bytes

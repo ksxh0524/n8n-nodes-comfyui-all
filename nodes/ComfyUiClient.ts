@@ -2,7 +2,7 @@ import { randomUUID } from 'crypto';
 import { VALIDATION, IMAGE_MIME_TYPES, VIDEO_MIME_TYPES } from './constants';
 import { IExecuteFunctions } from 'n8n-workflow';
 import { Logger } from './logger';
-import { extractImageFileInfo, extractVideoFileInfo, validateMimeType, getMaxImageSizeBytes, formatBytes } from './utils';
+import { extractImageFileInfo, extractVideoFileInfo, validateMimeType, getMaxImageSizeBytes, getMaxVideoSizeBytes, formatBytes } from './utils';
 import { HttpError, BinaryData, JsonData, ProcessOutput } from './types';
 import { HttpClient } from './HttpClient';
 import { N8nHelpersAdapter } from './N8nHelpersAdapter';
@@ -580,12 +580,13 @@ export class ComfyUIClient {
       });
       const buffer = Buffer.from(response);
 
-      // Validate buffer size (maximum 50MB as defined in VALIDATION.MAX_IMAGE_SIZE_MB)
-      const maxSize = getMaxImageSizeBytes();
+      // Validate buffer size based on resource type
+      const maxSize = resourceType === 'video' ? getMaxVideoSizeBytes() : getMaxImageSizeBytes();
+      const maxSizeLabel = resourceType === 'video' ? '500MB' : '50MB';
       if (buffer.length > maxSize) {
         const resourceTypeLabel = resourceType.charAt(0).toUpperCase() + resourceType.slice(1);
         throw new Error(
-          `${resourceTypeLabel} size (${formatBytes(buffer.length)}) exceeds maximum allowed size of ${formatBytes(maxSize)}`
+          `${resourceTypeLabel} size (${formatBytes(buffer.length)}) exceeds maximum allowed size of ${maxSizeLabel} (${formatBytes(maxSize)})`
         );
       }
 
