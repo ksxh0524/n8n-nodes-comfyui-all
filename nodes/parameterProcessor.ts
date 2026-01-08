@@ -177,19 +177,45 @@ export class ParameterProcessor {
     const inputData = this.executeFunctions.getInputData(0);
     const binaryPropertyName = value || 'data';
 
-    if (!inputData || !inputData[0] || !inputData[0].binary || !inputData[0].binary[binaryPropertyName]) {
-      const availableKeys = inputData && inputData[0] && inputData[0].binary ? Object.keys(inputData[0].binary).join(', ') : 'none';
+    if (!inputData || inputData.length === 0) {
       throw new NodeOperationError(
         this.executeFunctions.getNode(),
-        `Node Parameters ${index + 1}: Binary property "${binaryPropertyName}" not found in input data.
-
-Available binary properties: ${availableKeys}
-
-TIP: Check the previous node's "Output Binary Key" parameter. It should match "${binaryPropertyName}".`
+        `Node Parameters ${index + 1}: No input data available.`
       );
     }
 
-    const binaryData = inputData[0].binary[binaryPropertyName];
+    // Search for the binary property across all input items
+    let binaryData: any = null;
+    let foundItemIndex = -1;
+    let allAvailableKeys: string[] = [];
+
+    for (let i = 0; i < inputData.length; i++) {
+      const item = inputData[i];
+      if (item && item.binary) {
+        const keys = Object.keys(item.binary);
+        allAvailableKeys.push(...keys);
+
+        if (item.binary[binaryPropertyName]) {
+          binaryData = item.binary[binaryPropertyName];
+          foundItemIndex = i;
+          break;
+        }
+      }
+    }
+
+    if (binaryData === null) {
+      const uniqueKeys = [...new Set(allAvailableKeys)].join(', ');
+      throw new NodeOperationError(
+        this.executeFunctions.getNode(),
+        `Node Parameters ${index + 1}: Binary property "${binaryPropertyName}" not found in any input item.
+
+Available binary properties across all items: ${uniqueKeys || 'none'}
+
+TIP: Check the previous nodes' "Output Binary Key" parameters. One of them should match "${binaryPropertyName}".`
+      );
+    }
+
+    this.logger.debug(`Found binary property "${binaryPropertyName}" in input item ${foundItemIndex}`);
 
     if (!binaryData.data || typeof binaryData.data !== 'string') {
       throw new NodeOperationError(
