@@ -1,5 +1,6 @@
 import { HttpError } from './types';
 import { Logger } from './logger';
+import { VALIDATION } from './constants';
 
 export interface HttpRequestConfig {
   method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
@@ -31,7 +32,7 @@ export class HttpClient {
   constructor(config: HttpClientConfig) {
     this.adapter = config.adapter;
     this.logger = config.logger || new Logger();
-    this.defaultTimeout = config.defaultTimeout || 30000;
+    this.defaultTimeout = config.defaultTimeout || VALIDATION.DEFAULT_HTTP_TIMEOUT_MS;
   }
 
   async request<T = unknown>(config: HttpRequestConfig): Promise<T> {
