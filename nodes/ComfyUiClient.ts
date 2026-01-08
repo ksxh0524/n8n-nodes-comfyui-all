@@ -84,6 +84,7 @@ export class ComfyUIClient {
   private baseUrl: string;
   private clientId: string;
   private maxRetries: number;
+  private workflowTimeout: number; // User-configured workflow timeout in milliseconds
   private state: ClientState = ClientState.IDLE;
   private currentAbortController: AbortController | null = null;
 
@@ -97,6 +98,8 @@ export class ComfyUIClient {
     this.baseUrl = config.baseUrl;
     this.clientId = config.clientId || this.generateClientId();
     this.maxRetries = config.maxRetries ?? VALIDATION.MAX_RETRIES;
+    // Save the workflow timeout (user-configured timeout in milliseconds)
+    this.workflowTimeout = config.timeout || VALIDATION.MAX_WAIT_TIME_MS;
   }
 
   /**
@@ -254,7 +257,7 @@ export class ComfyUIClient {
       this.logger.debug('Response from ComfyUI:', safeStringify(response));
 
       if (response.prompt_id) {
-        return await this.waitForExecution(response.prompt_id);
+        return await this.waitForExecution(response.prompt_id, this.workflowTimeout);
       }
 
       return {
