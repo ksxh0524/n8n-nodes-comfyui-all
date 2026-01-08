@@ -17,9 +17,6 @@ import { validateUrl, validateComfyUIWorkflow } from '../validation';
 import { Workflow, JsonData } from '../types';
 import { createLogger } from '../logger';
 import {
-  hasBinaryData,
-  getFirstBinaryKey,
-  extractBinaryData,
   updateNodeParameter,
 } from '../agentToolHelpers';
 import { parseWorkflow } from '../workflowConfig';
@@ -100,6 +97,14 @@ export class ComfyUiTool {
         placeholder: 'e.g., 5, 12, load_image_1',
       },
       {
+        displayName: 'Image URL',
+        name: 'imageUrl',
+        type: 'string',
+        default: '',
+        description: 'Optional: URL of the image to process. Use this when passing images from AI Agents. The node will download and upload the image to ComfyUI.',
+        placeholder: 'https://example.com/image.png',
+      },
+      {
         displayName: 'Parameter Overrides',
         name: 'parameterOverrides',
         type: 'fixedCollection',
@@ -156,6 +161,7 @@ export class ComfyUiTool {
     const workflowJson = this.getNodeParameter('workflowJson', 0) as string;
     const timeout = this.getNodeParameter('timeout', 0) as number;
     const loadImageNodeId = this.getNodeParameter('loadImageNodeId', 0) as string;
+    const imageUrl = this.getNodeParameter('imageUrl', 0) as string;
     const parameterOverrides = this.getNodeParameter('parameterOverrides', 0) as {
       parameterOverride?: Array<{
         nodeId: string;
@@ -189,9 +195,6 @@ export class ComfyUiTool {
 
     logger.info('Processing ComfyUI workflow execution request', { comfyUiUrl, timeout });
 
-    // Get input data
-    const inputData = this.getInputData();
-    const hasInputImage = hasBinaryData(inputData);
     let uploadedImageFilename: string | null = null;
 
     // Create ComfyUI client
@@ -203,31 +206,88 @@ export class ComfyUiTool {
     });
 
     try {
-      // If input contains image and LoadImage node ID is specified, upload it
-      if (hasInputImage && loadImageNodeId) {
-        const binaryKey = getFirstBinaryKey(inputData);
-        if (!binaryKey) {
-          throw new NodeOperationError(this.getNode(), 'Binary data found but no binary key detected.');
+      // Handle image URL (for AI Agents)
+      if (imageUrl && loadImageNodeId) {
+        logger.info('Downloading image from URL', { url: imageUrl, nodeId: loadImageNodeId });
+
+        // Validate URL
+        const { validateUrl } = await import('../validation');
+        if (!validateUrl(imageUrl)) {
+          throw new NodeOperationError(
+            this.getNode(),
+            `Invalid image URL "${imageUrl}". Must be a valid HTTP/HTTPS URL.`
+          );
         }
 
-        const binaryData = extractBinaryData(inputData, binaryKey);
-        if (!binaryData) {
-          throw new NodeOperationError(this.getNode(), `Failed to extract binary data from key "${binaryKey}".`);
+        let buffer: Buffer;
+        let filename: string;
+
+        try {
+          // Download image using n8n's httpRequest
+          const imageResponse = await this.helpers.httpRequest({
+            method: 'GET',
+            url: imageUrl,
+            encoding: 'arraybuffer',
+            timeout: timeout * 1000,
+          });
+
+          if (!imageResponse || !Buffer.isBuffer(imageResponse)) {
+            throw new NodeOperationError(
+              this.getNode(),
+              `Failed to download image from URL "${imageUrl}". The server did not return valid image data.`
+            );
+          }
+
+          buffer = Buffer.from(imageResponse);
+
+          if (buffer.length === 0) {
+            throw new NodeOperationError(
+              this.getNode(),
+              `Downloaded image from URL "${imageUrl}" is empty.`
+            );
+          }
+
+          // Extract filename from URL
+          try {
+            const urlObj = new URL(imageUrl);
+            const pathname = urlObj.pathname;
+            filename = pathname.split('/').pop() || 'agent_image.png';
+
+            // Ensure filename has extension
+            if (!filename.includes('.')) {
+              filename = 'agent_image.png';
+            }
+          } catch {
+            filename = 'agent_image.png';
+          }
+
+          logger.info('Successfully downloaded image', {
+            url: imageUrl,
+            size: buffer.length,
+            filename
+          });
+
+        } catch (error) {
+          if (error instanceof NodeOperationError) {
+            throw error;
+          }
+
+          const httpError = error as { response?: { statusCode?: number; statusMessage?: string } };
+          const statusCode = httpError.response?.statusCode;
+          const statusMessage = httpError.response?.statusMessage;
+
+          let errorMessage = `Failed to download image from URL "${imageUrl}"`;
+          if (statusCode) {
+            errorMessage += ` (HTTP ${statusCode} ${statusMessage || ''})`;
+          }
+
+          throw new NodeOperationError(this.getNode(), errorMessage);
         }
-
-        logger.info('Uploading input image to ComfyUI', {
-          fileName: binaryData.fileName,
-          mimeType: binaryData.mimeType,
-          nodeId: loadImageNodeId,
-        });
-
-        // Convert base64 to buffer
-        const buffer = Buffer.from(binaryData.data, 'base64');
 
         // Upload image to ComfyUI
-        uploadedImageFilename = await client.uploadImage(buffer, binaryData.fileName || 'input_image.png');
+        uploadedImageFilename = await client.uploadImage(buffer, filename);
 
-        logger.info('Successfully uploaded input image', { filename: uploadedImageFilename });
+        logger.info('Successfully uploaded image to ComfyUI', { filename: uploadedImageFilename });
 
         // Update workflow with uploaded image filename
         workflow = updateNodeParameter(workflow, loadImageNodeId, 'inputs.image', uploadedImageFilename);

@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.4.5] - 2025-01-08
+
+### Added
+- **ComfyUI Tool Node**: New specialized node for AI Agent workflows with URL-based image input
+  - Accepts image URLs instead of binary data (prevents LLM context overflow)
+  - Automatically downloads images from URLs using `this.helpers.httpRequest`
+  - Optimized for AI Agent tool calling scenarios
+- **Parameter Overrides** for ComfyUI Tool node to support dynamic workflow parameter updates
+- Updated documentation with clear distinction between ComfyUI Tool and ComfyUI nodes
+
+### Changed
+- **ComfyUI Tool**: Now exclusively uses URL-based image input (removed binary handling)
+- **ComfyUI**: Continues to support both binary and URL inputs for standard workflows
+- Improved node selection guidance for different use cases (AI Agent vs standard workflows)
+
+### Technical Details
+- ComfyUI Tool node: URL-only image input → Download → Upload to ComfyUI
+- ComfyUI node: Binary OR URL input → Process → Upload to ComfyUI
+- Both nodes maintain the same output format (URLs for tool mode, binary for workflow mode)
+
 ## [2.2.11] - 2025-01-07
 
 ### Added
