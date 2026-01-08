@@ -157,7 +157,9 @@ export interface BinaryData {
   data: string;
   mimeType: string;
   fileName: string;
-  [key: string]: string; // Index signature for n8n compatibility
+  fileSize?: string; // File size in bytes as string (helps with preview)
+  fileExtension?: string; // File extension (helps with preview)
+  [key: string]: string | undefined; // Index signature for n8n compatibility
 }
 
 /**

@@ -694,6 +694,8 @@ export class ComfyUIClient {
             data: imageBuffer.toString('base64'),
             mimeType: mimeType,
             fileName: fileInfo.filename,
+            fileSize: imageBuffer.length.toString(),
+            fileExtension: fileInfo.extension,
           };
         }
 
@@ -717,6 +719,8 @@ export class ComfyUIClient {
             data: videoBuffer.toString('base64'),
             mimeType: mimeType,
             fileName: fileInfo.filename,
+            fileSize: videoBuffer.length.toString(),
+            fileExtension: fileInfo.extension,
           };
         }
 
