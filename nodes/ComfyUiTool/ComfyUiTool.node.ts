@@ -1,9 +1,9 @@
 /**
- * ComfyUI Tool - AI Agent-friendly image generation node
+ * ComfyUI Tool - Simplified workflow execution node for AI Agents
  *
- * This node is designed to be used as an AI Agent tool with minimal configuration.
- * It accepts a simple text query and automatically generates images using ComfyUI.
- * Supports both Text-to-Image and Image-to-Image workflows.
+ * This is a simplified node designed for AI Agent usage. It executes
+ * ComfyUI workflows provided by the user without making assumptions
+ * about workflow structure or node types.
  */
 
 import {
@@ -13,18 +13,16 @@ import {
 } from 'n8n-workflow';
 
 import { ComfyUIClient } from '../ComfyUiClient';
-import { validateUrl, safeJsonParse } from '../validation';
+import { validateUrl, validateComfyUIWorkflow } from '../validation';
 import { Workflow, JsonData } from '../types';
 import { createLogger } from '../logger';
 import {
-  parseInput,
-  updateWorkflow,
-  updateWorkflowWithImage,
   hasBinaryData,
   getFirstBinaryKey,
   extractBinaryData,
+  updateNodeParameter,
 } from '../agentToolHelpers';
-import { getWorkflowTemplate } from '../workflowConfig';
+import { parseWorkflow } from '../workflowConfig';
 
 export class ComfyUiTool {
   /**
@@ -38,38 +36,28 @@ export class ComfyUiTool {
     group: ['transform'],
     version: [1],
     defaultVersion: 1,
-    description: 'AI-friendly image generation tool. Supports text-to-image and image-to-image.',
+    description: 'Execute ComfyUI workflows. Requires a workflow JSON exported from ComfyUI.',
     defaults: {
       name: 'ComfyUI Tool',
     },
     usableAsTool: true,
     inputs: ['main'],
     outputs: ['main'],
-    subtitle: 'AI Image Generator',
+    subtitle: 'ComfyUI Workflow Executor',
     notes: [
-      'Optimized for AI Agent usage',
-      'Automatically detects and handles both text-to-image and image-to-image',
-      'For image editing: pass image binary + text description',
-      'Supports size, steps, cfg, seed, and negative prompt parameters',
-      'Examples: "A beautiful sunset, size:1024x768, steps:30"',
+      'You must provide a ComfyUI workflow JSON (API Format)',
+      'In ComfyUI: Design your workflow → Click "Save (API Format)" → Copy JSON → Paste here',
+      'Works with ANY ComfyUI workflow: text-to-image, image-to-image, video generation, etc.',
+      'Configure parameters directly in your workflow JSON or use parameter overrides',
     ],
     inputSample: {
-      query: 'A beautiful landscape painting',
+      workflowJson: '{ "3": { "inputs": {}, "class_type": "KSampler" } }',
     },
     outputSample: {
       json: {
         success: true,
         imageCount: 1,
         imageUrls: ['http://127.0.0.1:8188/view?filename=ComfyUI_00001.png'],
-        prompt: 'A beautiful landscape painting',
-        mode: 'text-to-image',
-        parameters: {
-          width: 512,
-          height: 512,
-          steps: 20,
-          cfg: 8,
-          seed: 123456789,
-        },
       },
     },
     properties: [
@@ -82,74 +70,75 @@ export class ComfyUiTool {
         description: 'URL of ComfyUI server',
       },
       {
+        displayName: 'Workflow JSON',
+        name: 'workflowJson',
+        type: 'string',
+        typeOptions: {
+          rows: 20,
+        },
+        required: true,
+        default: '',
+        description: 'Paste your ComfyUI workflow JSON (API Format). Required field - no built-in templates.',
+        placeholder: 'Paste your ComfyUI workflow JSON (API Format) here...\n\n{\n  "3": {\n    "inputs": {\n      "seed": 123456789,\n      ...\n    },\n    "class_type": "KSampler"\n  }\n}',
+        hint: 'Required: Export your workflow from ComfyUI in API format and paste it here.',
+      },
+      {
         displayName: 'Timeout (Seconds)',
         name: 'timeout',
         type: 'number',
-        default: 120,
-        description: 'Maximum time to wait for image generation (in seconds). Default: 120 (2 minutes).',
+        default: 300,
+        description: 'Maximum time to wait for workflow execution (in seconds). Default: 300 (5 minutes).',
         minValue: 10,
-        maxValue: 600,
+        maxValue: 3600,
       },
       {
-        displayName: 'Default Negative Prompt',
-        name: 'defaultNegativePrompt',
+        displayName: 'Load Image Node ID',
+        name: 'loadImageNodeId',
         type: 'string',
-        default: 'ugly, blurry, low quality, distorted',
-        description: 'Default negative prompt to use when not specified in query',
-        placeholder: 'ugly, blurry, low quality',
+        default: '',
+        description: 'Optional: Node ID of LoadImage node if your workflow uses input images. Leave empty if not using image input.',
+        placeholder: 'e.g., 5, 12, load_image_1',
       },
       {
-        displayName: 'Advanced Options',
-        name: 'advancedOptions',
-        type: 'collection',
-        placeholder: 'Add Option',
+        displayName: 'Parameter Overrides',
+        name: 'parameterOverrides',
+        type: 'fixedCollection',
+        placeholder: 'Add Parameter Override',
         default: {},
+        description: 'Override specific node parameters at runtime. Useful for dynamic values from input data.',
         options: [
           {
-            displayName: 'Custom Workflow JSON',
-            name: 'customWorkflow',
-            type: 'string',
-            typeOptions: {
-              rows: 20,
-            },
-            default: '',
-            description: 'Optional: Custom ComfyUI workflow JSON (API Format). If empty, uses default workflow. Only use this if you want to override the default template.',
-          },
-          {
-            displayName: 'Default CFG',
-            name: 'defaultCfg',
-            type: 'number',
-            default: 8,
-            description: 'Default CFG scale when not specified in query',
-            minValue: 1,
-            maxValue: 30,
-          },
-          {
-            displayName: 'Default Height',
-            name: 'defaultHeight',
-            type: 'number',
-            default: 512,
-            description: 'Default image height when not specified in query',
-            minValue: 64,
-            maxValue: 4096,
-          },
-          {
-            displayName: 'Default Steps',
-            name: 'defaultSteps',
-            type: 'number',
-            default: 20,
-            description: 'Default sampling steps when not specified in query',
-            minValue: 1,
-            maxValue: 150,
-          },
-          {
-            displayName: 'Default Width',
-            name: 'defaultWidth',
-            type: 'number',
-            default: 512,
-            description: 'Default image width when not specified in query',
-            minValue: 64,
-            maxValue: 4096,
+            displayName: 'Parameter Override',
+            name: 'parameterOverride',
+            type: 'collection',
+            placeholder: 'Add Override',
+            default: {},
+            options: [
+              {
+                displayName: 'Node ID',
+                name: 'nodeId',
+                type: 'string',
+                default: '',
+                description: 'The node ID to update (e.g., "3", "6", "15")',
+                placeholder: 'Node ID from workflow JSON',
+              },
+              {
+                displayName: 'Parameter Path',
+                name: 'paramPath',
+                type: 'string',
+                required: true,
+                default: '',
+                description: 'Path to the parameter (e.g., "inputs.text", "inputs.seed", "inputs.steps")',
+                placeholder: 'inputs.parameter_name',
+              },
+              {
+                displayName: 'Value',
+                name: 'value',
+                type: 'string',
+                default: '',
+                description: 'The new value. Can be a static value or an expression (e.g., "{{ $JSON.prompt }}").',
+              },
+            ],
           },
         ],
       },
@@ -164,85 +153,46 @@ export class ComfyUiTool {
 
     // Get node parameters
     const comfyUiUrl = this.getNodeParameter('comfyUiUrl', 0) as string;
+    const workflowJson = this.getNodeParameter('workflowJson', 0) as string;
     const timeout = this.getNodeParameter('timeout', 0) as number;
-    const defaultNegativePrompt = this.getNodeParameter('defaultNegativePrompt', 0) as string;
-
-    const advancedOptions = this.getNodeParameter('advancedOptions', 0) as {
-      customWorkflow?: string;
-      defaultWidth?: number;
-      defaultHeight?: number;
-      defaultSteps?: number;
-      defaultCfg?: number;
+    const loadImageNodeId = this.getNodeParameter('loadImageNodeId', 0) as string;
+    const parameterOverrides = this.getNodeParameter('parameterOverrides', 0) as {
+      parameterOverride?: Array<{
+        nodeId: string;
+        paramPath: string;
+        value: string;
+      }>;
     };
-
-    const {
-      customWorkflow = '',
-      defaultWidth = 512,
-      defaultHeight = 512,
-      defaultSteps = 20,
-      defaultCfg = 8,
-    } = advancedOptions || {};
 
     // Validate URL
     if (!validateUrl(comfyUiUrl)) {
       throw new NodeOperationError(this.getNode(), 'Invalid ComfyUI URL. Must be a valid HTTP/HTTPS URL.');
     }
 
-    // Get input data
-    const inputData = this.getInputData();
-
-    if (!inputData || inputData.length === 0) {
-      throw new NodeOperationError(this.getNode(), 'No input data provided. Please provide a query text.');
-    }
-
-    // Check if input contains binary image data
-    const hasInputImage = hasBinaryData(inputData);
-    let uploadedImageFilename: string | null = null;
-
-    // Get query from input
-    const firstItem = inputData[0];
-    const query = (firstItem.json.query as string) ||
-                  (firstItem.json.text as string) ||
-                  (firstItem.json.prompt as string) ||
-                  '';
-
-    if (!query || query.trim().length === 0) {
+    // Parse and validate workflow
+    let workflow: Workflow;
+    try {
+      workflow = parseWorkflow(workflowJson);
+      const validation = validateComfyUIWorkflow(workflowJson);
+      if (!validation.valid && validation.error) {
+        throw new NodeOperationError(this.getNode(), `Invalid workflow: ${validation.error}`);
+      }
+    } catch (error) {
+      if (error instanceof NodeOperationError) {
+        throw error;
+      }
       throw new NodeOperationError(
         this.getNode(),
-        'No query found in input. Please provide a "query", "text", or "prompt" field with a description of the image you want to generate.'
+        `Failed to parse workflow JSON. Please ensure it is valid ComfyUI API format.\nError: ${error instanceof Error ? error.message : String(error)}`
       );
     }
 
-    // Determine mode based on input
-    const mode = hasInputImage ? 'image-to-image' : 'text-to-image';
+    logger.info('Processing ComfyUI workflow execution request', { comfyUiUrl, timeout });
 
-    logger.info('Processing image generation request', { query, comfyUiUrl, timeout, mode });
-
-    // Parse the query to extract parameters
-    const params = parseInput(query, {
-      negativePrompt: defaultNegativePrompt,
-      width: defaultWidth,
-      height: defaultHeight,
-      steps: defaultSteps,
-      cfg: defaultCfg,
-    });
-
-    logger.debug('Parsed parameters', {
-      prompt: params.prompt,
-      width: params.width,
-      height: params.height,
-      steps: params.steps,
-      cfg: params.cfg,
-      seed: params.seed,
-    });
-
-    // Get workflow template
-    let workflowTemplate: Workflow;
-    if (customWorkflow && customWorkflow.trim().length > 0) {
-      workflowTemplate = safeJsonParse(customWorkflow, 'Custom workflow JSON') as Workflow;
-    } else {
-      workflowTemplate = getWorkflowTemplate({ mode });
-    }
+    // Get input data
+    const inputData = this.getInputData();
+    const hasInputImage = hasBinaryData(inputData);
+    let uploadedImageFilename: string | null = null;
 
     // Create ComfyUI client
     const client = new ComfyUIClient({
@@ -253,10 +203,8 @@ export class ComfyUiTool {
     });
 
     try {
-      logger.info('Starting ComfyUI workflow execution');
-
-      // If input contains image, upload it first
-      if (hasInputImage) {
+      // If input contains image and LoadImage node ID is specified, upload it
+      if (hasInputImage && loadImageNodeId) {
         const binaryKey = getFirstBinaryKey(inputData);
         if (!binaryKey) {
           throw new NodeOperationError(this.getNode(), 'Binary data found but no binary key detected.');
@@ -270,6 +218,7 @@ export class ComfyUiTool {
         logger.info('Uploading input image to ComfyUI', {
           fileName: binaryData.fileName,
           mimeType: binaryData.mimeType,
+          nodeId: loadImageNodeId,
         });
 
         // Convert base64 to buffer
@@ -279,54 +228,66 @@ export class ComfyUiTool {
         uploadedImageFilename = await client.uploadImage(buffer, binaryData.fileName || 'input_image.png');
 
         logger.info('Successfully uploaded input image', { filename: uploadedImageFilename });
+
+        // Update workflow with uploaded image filename
+        workflow = updateNodeParameter(workflow, loadImageNodeId, 'inputs.image', uploadedImageFilename);
       }
 
-      // Update workflow with parsed parameters
-      let workflow = updateWorkflow(workflowTemplate, params);
+      // Apply parameter overrides if provided
+      if (parameterOverrides?.parameterOverride && parameterOverrides.parameterOverride.length > 0) {
+        logger.info('Applying parameter overrides', {
+          count: parameterOverrides.parameterOverride.length,
+        });
 
-      // If we uploaded an image, update workflow with the image filename
-      if (uploadedImageFilename) {
-        workflow = updateWorkflowWithImage(workflow, uploadedImageFilename);
+        for (const override of parameterOverrides.parameterOverride) {
+          const { nodeId, paramPath, value } = override;
+
+          // Evaluate expressions if needed
+          let evaluatedValue: unknown = value;
+          if (value && value.includes('{{') && value.includes('}}')) {
+            try {
+              evaluatedValue = this.evaluateExpression(value, 0);
+              logger.debug('Evaluated expression', { nodeId, paramPath, result: evaluatedValue });
+            } catch (error) {
+              logger.warn(`Failed to evaluate expression for ${nodeId}.${paramPath}, using raw value`, { error });
+            }
+          }
+
+          workflow = updateNodeParameter(workflow, nodeId, paramPath, evaluatedValue);
+          logger.debug('Applied parameter override', { nodeId, paramPath, value: evaluatedValue });
+        }
       }
+
+      logger.info('Starting ComfyUI workflow execution');
 
       // Execute workflow
       const result = await client.executeWorkflow(workflow);
 
       if (!result.success) {
         logger.error('Workflow execution failed', result.error);
-        throw new NodeOperationError(this.getNode(), `Failed to generate image: ${result.error}`);
+        throw new NodeOperationError(this.getNode(), `Failed to execute workflow: ${result.error}`);
       }
 
-      // Only return URLs without downloading (for AI Agent)
+      // Build URLs
       const imageUrls = result.images ? result.images.map(img => `${comfyUiUrl}${img}`) : [];
       const videoUrls = result.videos ? result.videos.map(vid => `${comfyUiUrl}${vid}`) : [];
 
-      const enhancedJson: JsonData = {
+      const outputJson: JsonData = {
         success: true,
         imageUrls,
         videoUrls,
         imageCount: result.images?.length || 0,
         videoCount: result.videos?.length || 0,
-        prompt: params.prompt,
-        mode: mode,
-        parameters: {
-          width: params.width,
-          height: params.height,
-          steps: params.steps,
-          cfg: params.cfg,
-          seed: params.seed,
-          negative_prompt: params.negative_prompt,
-        },
-      } as JsonData;
+      };
 
-      logger.info('Image generation completed successfully', {
-        imageCount: enhancedJson.imageCount,
-        mode,
+      logger.info('Workflow execution completed successfully', {
+        imageCount: outputJson.imageCount,
+        videoCount: outputJson.videoCount,
       });
 
-      // Return result (no binary data for AI Agent)
+      // Return result (no binary data for AI Agent - URLs only)
       return [this.helpers.constructExecutionMetaData(
-        [{ json: enhancedJson }],
+        [{ json: outputJson }],
         { itemData: { item: 0 } }
       )];
     } catch (error) {

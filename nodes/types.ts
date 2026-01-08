@@ -62,50 +62,6 @@ export interface ImageInfo {
   url: string;
 }
 
-export interface ParsedParameters {
-  prompt: string;
-  negative_prompt: string;
-  width: number;
-  height: number;
-  steps: number;
-  cfg: number;
-  seed: number;
-  [key: string]: unknown; // Allow dynamic properties
-}
-
-export interface ParameterPattern {
-  regex: RegExp;
-  paramKey?: string;
-  paramKeys?: string[];
-  parser: (match: RegExpMatchArray) => unknown;
-}
-
-export interface ToolInputOptions {
-  comfyUiUrl?: string;
-  workflowConfig?: WorkflowConfig;
-}
-
-export interface WorkflowConfig {
-  template?: Workflow;
-  customTemplate?: string;
-}
-
-export interface ToolResult {
-  success: boolean;
-  message?: string;
-  error?: string;
-  data?: {
-    prompt: string;
-    images: string[];
-    parameters: ParsedParameters;
-  };
-}
-
-export interface ParameterExtractionResult {
-  value: unknown;
-  cleanedQuery: string;
-}
-
 // Re-export from ComfyUiClient for convenience
 export type { ComfyUIClientConfig, WorkflowExecution, WorkflowResult } from './ComfyUiClient';
 
