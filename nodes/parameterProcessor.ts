@@ -1,5 +1,5 @@
 import { IExecuteFunctions, NodeOperationError } from 'n8n-workflow';
-import { NodeParameterConfig, Workflow } from './types';
+import { NodeParameterConfig, Workflow, BinaryData } from './types';
 import { safeJsonParse } from './validation';
 import { Logger } from './logger';
 
@@ -185,9 +185,9 @@ export class ParameterProcessor {
     }
 
     // Search for the binary property across all input items
-    let binaryData: any = null;
+    let binaryData: BinaryData | null = null;
     let foundItemIndex = -1;
-    let allAvailableKeys: string[] = [];
+    const allAvailableKeys: string[] = [];
 
     for (let i = 0; i < inputData.length; i++) {
       const item = inputData[i];
@@ -196,7 +196,7 @@ export class ParameterProcessor {
         allAvailableKeys.push(...keys);
 
         if (item.binary[binaryPropertyName]) {
-          binaryData = item.binary[binaryPropertyName];
+          binaryData = item.binary[binaryPropertyName] as BinaryData;
           foundItemIndex = i;
           break;
         }
