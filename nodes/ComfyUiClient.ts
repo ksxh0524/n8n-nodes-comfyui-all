@@ -2,7 +2,7 @@ import { randomUUID } from 'crypto';
 import { VALIDATION, IMAGE_MIME_TYPES, VIDEO_MIME_TYPES } from './constants';
 import { IExecuteFunctions } from 'n8n-workflow';
 import { Logger } from './logger';
-import { extractFileInfo, validateMimeType, getMaxImageSizeBytes, formatBytes } from './utils';
+import { extractImageFileInfo, extractVideoFileInfo, validateMimeType, getMaxImageSizeBytes, formatBytes } from './utils';
 import { HttpError, BinaryData, JsonData, ProcessOutput } from './types';
 import { HttpClient } from './HttpClient';
 import { N8nHelpersAdapter } from './N8nHelpersAdapter';
@@ -686,7 +686,7 @@ export class ComfyUIClient {
           const imagePath = result.images[i];
           const imageBuffer = imageBuffers[i];
 
-          const fileInfo = extractFileInfo(imagePath, 'png');
+          const fileInfo = extractImageFileInfo(imagePath, 'png');
           const mimeType = validateMimeType(fileInfo.mimeType, IMAGE_MIME_TYPES);
 
           const binaryKey = i === 0 ? outputBinaryKey : `image_${i}`;
@@ -708,7 +708,7 @@ export class ComfyUIClient {
         for (let i = 0; i < result.videos.length; i++) {
           const videoPath = result.videos[i];
           const videoBuffer = videoBuffers[i];
-          const fileInfo = extractFileInfo(videoPath, 'mp4');
+          const fileInfo = extractVideoFileInfo(videoPath, 'mp4');
           const mimeType = validateMimeType(fileInfo.mimeType, VIDEO_MIME_TYPES);
 
           const hasImages = result.images && result.images.length > 0;

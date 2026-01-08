@@ -74,6 +74,48 @@ export function extractFileInfo(
 }
 
 /**
+ * Extract file information for images
+ * @param path - File path
+ * @param defaultExt - Default extension
+ * @returns File information with image MIME type
+ */
+export function extractImageFileInfo(path: string, defaultExt: string = 'png'): FileInfo {
+  const fileInfo = extractFileInfo(path, defaultExt);
+
+  // Ensure the MIME type is an image type
+  if (!Object.values(IMAGE_MIME_TYPES).includes(fileInfo.mimeType)) {
+    // If the detected MIME type is not an image, use the default extension
+    const defaultMime = IMAGE_MIME_TYPES[defaultExt];
+    if (defaultMime) {
+      fileInfo.mimeType = defaultMime;
+    }
+  }
+
+  return fileInfo;
+}
+
+/**
+ * Extract file information for videos
+ * @param path - File path
+ * @param defaultExt - Default extension
+ * @returns File information with video MIME type
+ */
+export function extractVideoFileInfo(path: string, defaultExt: string = 'mp4'): FileInfo {
+  const fileInfo = extractFileInfo(path, defaultExt);
+
+  // Ensure the MIME type is a video type
+  if (!Object.values(VIDEO_MIME_TYPES).includes(fileInfo.mimeType)) {
+    // If the detected MIME type is not a video, use the default extension
+    const defaultMime = VIDEO_MIME_TYPES[defaultExt];
+    if (defaultMime) {
+      fileInfo.mimeType = defaultMime;
+    }
+  }
+
+  return fileInfo;
+}
+
+/**
  * Validate and sanitize filename
  * @param filename - The filename to validate
  * @returns Sanitized filename
