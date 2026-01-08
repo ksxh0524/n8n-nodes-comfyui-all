@@ -23,10 +23,24 @@ export function extractFileInfo(
   defaultExt: string,
   mimeType?: string
 ): FileInfo {
-  // Extract filename from path
-  let filename = path.split('/').pop() || `file_${randomUUID()}.${defaultExt}`;
+  let filename: string;
 
-  // Remove query parameters
+  // Try to extract filename from URL query parameters first (ComfyUI format)
+  // ComfyUI URLs look like: /view?filename=image_12345.png&subfolder=&type=output
+  if (path.includes('filename=')) {
+    const filenameMatch = path.match(/filename=([^&]+)/);
+    if (filenameMatch) {
+      filename = decodeURIComponent(filenameMatch[1]);
+    } else {
+      // Fallback: extract from path
+      filename = path.split('/').pop() || `file_${randomUUID()}.${defaultExt}`;
+    }
+  } else {
+    // No query parameters, extract from path
+    filename = path.split('/').pop() || `file_${randomUUID()}.${defaultExt}`;
+  }
+
+  // Remove query parameters if still present
   if (filename.includes('?')) {
     filename = filename.split('?')[0];
   }
