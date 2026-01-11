@@ -27,14 +27,12 @@ export class ComfyUi {
     defaults: {
       name: 'ComfyUI',
     },
-    usableAsTool: true,
     inputs: ['main'],
     outputs: ['main'],
     subtitle: 'ComfyUI Integration',
     notes: [
       'Requires a running ComfyUI server',
       'Supports dynamic parameter overrides',
-      'Can be used as an AI Agent tool',
     ],
     inputSample: {
       comfyUiUrl: 'http://127.0.0.1:8188',

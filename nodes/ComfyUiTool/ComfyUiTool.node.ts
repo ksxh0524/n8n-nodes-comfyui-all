@@ -20,6 +20,7 @@ import {
   updateNodeParameter,
 } from '../agentToolHelpers';
 import { parseWorkflow } from '../workflowConfig';
+import { ParameterProcessor } from '../parameterProcessor';
 
 export class ComfyUiTool {
   /**
@@ -120,6 +121,19 @@ export class ComfyUiTool {
             default: {},
             options: [
               {
+                displayName: 'Image URL',
+                name: 'imageUrl',
+                type: 'string',
+                default: '',
+                description: 'URL of the image to download and upload to ComfyUI',
+                placeholder: 'https://example.com/image.png',
+                displayOptions: {
+                  show: {
+                    type: ['image'],
+                  },
+                },
+              },
+              {
                 displayName: 'Node ID',
                 name: 'nodeId',
                 type: 'string',
@@ -137,11 +151,83 @@ export class ComfyUiTool {
                 placeholder: 'inputs.parameter_name',
               },
               {
+                displayName: 'Type',
+                name: 'type',
+                type: 'options',
+                default: 'text',
+                description: 'Data type of parameter',
+                options: [
+                  {
+                    name: 'Text',
+                    value: 'text',
+                    description: 'String/text value',
+                  },
+                  {
+                    name: 'Number',
+                    value: 'number',
+                    description: 'Numeric value',
+                  },
+                  {
+                    name: 'Boolean',
+                    value: 'boolean',
+                    description: 'True/False',
+                  },
+                  {
+                    name: 'Image',
+                    value: 'image',
+                    description: 'Image file from URL',
+                  },
+                ],
+              },
+              {
+                displayName: 'Value',
+                name: 'booleanValue',
+                type: 'options',
+                default: 'false',
+                description: 'The boolean value',
+                options: [
+                  {
+                    name: 'True',
+                    value: 'true',
+                    description: 'Enable/set to true',
+                  },
+                  {
+                    name: 'False',
+                    value: 'false',
+                    description: 'Disable/set to false',
+                  },
+                ],
+                displayOptions: {
+                  show: {
+                    type: ['boolean'],
+                  },
+                },
+              },
+              {
+                displayName: 'Value',
+                name: 'numberValue',
+                type: 'number',
+                default: 0,
+                description: 'The numeric value',
+                placeholder: 'Enter number...',
+                displayOptions: {
+                  show: {
+                    type: ['number'],
+                  },
+                },
+              },
+              {
                 displayName: 'Value',
                 name: 'value',
                 type: 'string',
                 default: '',
-                description: 'The new value. Can be a static value or an expression (e.g., "{{ $JSON.prompt }}").',
+                description: 'The text value. Can be a static value or an expression (e.g., "{{ $JSON.prompt }}").',
+                placeholder: 'Enter text...',
+                displayOptions: {
+                  show: {
+                    type: ['text'],
+                  },
+                },
               },
             ],
           },
@@ -166,7 +252,11 @@ export class ComfyUiTool {
       parameterOverride?: Array<{
         nodeId: string;
         paramPath: string;
-        value: string;
+        type?: 'text' | 'number' | 'boolean' | 'image';
+        value?: string;
+        numberValue?: number;
+        booleanValue?: string | boolean;
+        imageUrl?: string;
       }>;
     };
 
@@ -299,23 +389,32 @@ export class ComfyUiTool {
           count: parameterOverrides.parameterOverride.length,
         });
 
-        for (const override of parameterOverrides.parameterOverride) {
-          const { nodeId, paramPath, value } = override;
+        const parameterProcessor = new ParameterProcessor({
+          executeFunctions: this,
+          logger,
+        });
 
-          // Evaluate expressions if needed
-          let evaluatedValue: unknown = value;
-          if (value && value.includes('{{') && value.includes('}}')) {
-            try {
-              evaluatedValue = this.evaluateExpression(value, 0);
-              logger.debug('Evaluated expression', { nodeId, paramPath, result: evaluatedValue });
-            } catch (error) {
-              logger.warn(`Failed to evaluate expression for ${nodeId}.${paramPath}, using raw value`, { error });
-            }
-          }
+        // Convert simplified parameter overrides to format expected by ParameterProcessor
+        const nodeParametersInput = {
+          nodeParameter: parameterOverrides.parameterOverride.map((override) => ({
+            nodeId: override.nodeId,
+            parameterMode: 'single' as const,
+            paramName: override.paramPath,
+            type: override.type || 'text',
+            imageSource: 'url' as const, // ComfyUiTool only supports URL for images
+            value: override.value || '',
+            numberValue: override.numberValue ?? 0,
+            booleanValue: override.booleanValue ?? 'false',
+            imageUrl: override.imageUrl || '',
+          }))
+        };
 
-          workflow = updateNodeParameter(workflow, nodeId, paramPath, evaluatedValue);
-          logger.debug('Applied parameter override', { nodeId, paramPath, value: evaluatedValue });
-        }
+        await parameterProcessor.processNodeParameters(
+          nodeParametersInput,
+          workflow,
+          (buffer: Buffer, filename: string) => client.uploadImage(buffer, filename),
+          timeout
+        );
       }
 
       logger.info('Starting ComfyUI workflow execution');

@@ -52,7 +52,8 @@
     "n8nNodesApiVersion": 1,
     "credentials": [],
     "nodes": [
-      "dist/nodes/ComfyUi/ComfyUi.node.js"
+      "dist/nodes/ComfyUi/ComfyUi.node.js",
+      "dist/nodes/ComfyUiTool/ComfyUiTool.node.js"
     ]
   },
   "dependencies": {},
