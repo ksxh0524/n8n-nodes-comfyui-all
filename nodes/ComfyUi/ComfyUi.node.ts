@@ -72,10 +72,10 @@ export class ComfyUi {
           rows: 20,
         },
         required: true,
-        default: '{\n  "3": {\n    "inputs": {\n      "seed": 123456789,\n      "steps": 20,\n      "cfg": 8,\n      "sampler_name": "euler",\n      "scheduler": "normal",\n      "denoise": 0.75,\n      "model": ["4", 0],\n      "positive": ["6", 0],\n      "negative": ["7", 0],\n      "latent_image": ["5", 0]\n    },\n    "class_type": "KSampler"\n  },\n  "4": {\n    "inputs": {\n      "ckpt_name": "v1-5-pruned-emaonly.ckpt"\n    },\n    "class_type": "CheckpointLoaderSimple"\n  },\n  "5": {\n    "inputs": {\n      "width": 512,\n      "height": 512,\n      "batch_size": 1\n    },\n    "class_type": "EmptyLatentImage"\n  },\n  "6": {\n    "inputs": {\n      "text": "a beautiful landscape"\n    },\n    "class_type": "CLIPTextEncode"\n  },\n  "7": {\n    "inputs": {\n      "text": "text, watermark, ugly, duplicate, low quality"\n    },\n    "class_type": "CLIPTextEncode"\n  },\n  "8": {\n    "inputs": {\n      "samples": ["3", 0],\n      "vae": ["4", 0]\n    },\n    "class_type": "VAEDecode"\n  },\n  "9": {\n    "inputs": {\n      "filename_prefix": "ComfyUI",\n      "images": ["8", 0]\n    },\n    "class_type": "SaveImage"\n  }\n}',
+        default: '{}',
         description: 'Paste your ComfyUI workflow JSON (API Format). In ComfyUI: 1. Design your workflow 2. Click "Save (API Format)" to export 3. Copy generated JSON 4. Paste it here. Tip: Configure all parameters directly in JSON (prompts, resolution, sampling parameters, frames, etc.).',
         placeholder: 'Paste your ComfyUI workflow JSON...\n\n{\n  "3": {\n    "inputs": {\n      "seed": 123456789,\n      "steps": 20,\n      ...\n    },\n    "class_type": "KSampler"\n  }\n}',
-        hint: 'Copy API Format workflow from ComfyUI and paste it here. A default text-to-image workflow is provided for quick start.',
+        hint: 'Copy API Format workflow from ComfyUI and paste it here.',
       },
       {
         displayName: 'Timeout (Seconds)',
