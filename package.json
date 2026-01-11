@@ -1,6 +1,6 @@
 {
   "name": "n8n-nodes-comfyui-all",
-  "version": "2.4.11",
+  "version": "2.4.12",
   "description": "n8n community nodes for ComfyUI workflow execution with dynamic parameter support",
   "keywords": [
     "n8n-community-node-package",
@@ -52,8 +52,7 @@
     "n8nNodesApiVersion": 1,
     "credentials": [],
     "nodes": [
-      "dist/nodes/ComfyUi/ComfyUi.node.js",
-      "dist/nodes/ComfyUiTool/ComfyUiTool.node.js"
+      "dist/nodes/ComfyUi/ComfyUi.node.js"
     ]
   },
   "dependencies": {},

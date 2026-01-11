@@ -93,6 +93,25 @@ export class ComfyUi {
         placeholder: 'data',
       },
       {
+        displayName: 'Used As Tool',
+        name: 'usedAsTool',
+        type: 'options',
+        default: 'false',
+        description: 'Choose how to use this node',
+        options: [
+          {
+            name: 'Workflow Mode',
+            value: 'false',
+            description: 'Return binary data (for n8n workflows)',
+          },
+          {
+            name: 'Tool Mode',
+            value: 'true',
+            description: 'Return URLs only (for AI Agents)',
+          },
+        ]
+      },
+      {
         displayName: 'Node Parameters',
         name: 'nodeParameters',
         type: 'fixedCollection',
@@ -203,7 +222,7 @@ export class ComfyUi {
 												name: 'imageSource',
 												type: 'options',
 												default: 'url',
-												description: 'How to input the image',
+												description: 'How to input image',
 												options: [
 													{
 														name: 'URL',
@@ -218,6 +237,7 @@ export class ComfyUi {
 												],
 												displayOptions: {
 													show: {
+														usedAsTool: [false],
 														parameterMode: ['single'],
 														type: ['image'],
 													},
@@ -248,6 +268,7 @@ export class ComfyUi {
 												placeholder: 'Enter text...',
 												displayOptions: {
 													show: {
+														usedAsTool: [false],
 														parameterMode: ['single'],
 														type: ['text'],
 													},
@@ -262,6 +283,7 @@ export class ComfyUi {
 												placeholder: 'data',
 												displayOptions: {
 													show: {
+														usedAsTool: [false],
 														parameterMode: ['single'],
 														type: ['image'],
 														imageSource: ['binary'],
@@ -326,6 +348,7 @@ export class ComfyUi {
     const workflowJson = this.getNodeParameter('workflowJson', 0) as string;
     const timeout = this.getNodeParameter('timeout', 0) as number;
     const outputBinaryKey = validateOutputBinaryKey(this.getNodeParameter('outputBinaryKey', 0) as string);
+    const isUsedAsTool = this.getNodeParameter('usedAsTool', 0) as boolean;
 
     if (!validateUrl(comfyUiUrl)) {
       throw new NodeOperationError(this.getNode(), 'Invalid ComfyUI URL. Must be a valid HTTP/HTTPS URL.');
@@ -381,15 +404,33 @@ export class ComfyUi {
         throw new NodeOperationError(this.getNode(), `Failed to execute workflow: ${result.error}`);
       }
 
-      const { json, binary } = await client.processResults(result, outputBinaryKey);
+      let outputData: INodeExecutionData;
+
+      if (isUsedAsTool) {
+        outputData = {
+          json: {
+            success: true,
+            imageUrls: result.images ? result.images.map(img => `${comfyUiUrl}${img}`) : [],
+            videoUrls: result.videos ? result.videos.map(vid => `${comfyUiUrl}${vid}`) : [],
+            imageCount: result.images?.length || 0,
+            videoCount: result.videos?.length || 0,
+          },
+        };
+      } else {
+        const { json, binary } = await client.processResults(result, outputBinaryKey);
+        outputData = {
+          json,
+          binary,
+        };
+      }
 
       logger.info('Workflow execution completed successfully', {
-        imageCount: json.imageCount,
-        videoCount: json.videoCount,
+        imageCount: outputData.json.imageCount || 0,
+        videoCount: outputData.json.videoCount || 0,
       });
 
       return [this.helpers.constructExecutionMetaData(
-        [{ json, binary }],
+        [outputData],
         { itemData: { item: 0 } }
       )];
     } catch (error) {
