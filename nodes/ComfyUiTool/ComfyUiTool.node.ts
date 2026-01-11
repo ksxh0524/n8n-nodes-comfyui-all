@@ -27,7 +27,7 @@ export class ComfyUiTool {
    * Node description for n8n
    */
   description = {
-    displayName: 'ComfyUI Tool',
+    displayName: 'ComfyUI',
     name: 'comfyUiTool',
     icon: 'file:comfyui.svg',
     iconColor: '#77C157',
@@ -36,7 +36,7 @@ export class ComfyUiTool {
     defaultVersion: 1,
     description: 'Execute ComfyUI workflows. Requires a workflow JSON exported from ComfyUI.',
     defaults: {
-      name: 'ComfyUI Tool',
+      name: 'ComfyUI',
     },
     usableAsTool: true,
     inputs: ['main'],
