@@ -16,11 +16,14 @@ function safeStringify(obj: unknown): string {
   if (obj === null || obj === undefined) {
     return String(obj);
   }
-  
+
   if (typeof obj !== 'object') {
     return String(obj);
   }
-  
+
+  // Create a new WeakSet for each call to avoid shared state issues
+  const seen = new WeakSet();
+
   try {
     return JSON.stringify(obj, (_, value) => {
       if (typeof value === 'object' && value !== null) {
@@ -38,8 +41,6 @@ function safeStringify(obj: unknown): string {
     return String(obj);
   }
 }
-
-const seen = new WeakSet();
 
 /**
  * Client state enumeration for state machine pattern
@@ -678,17 +679,20 @@ export class ComfyUIClient {
     }
 
     const binaryData: Record<string, BinaryData> = {};
-    const buffers: Buffer[] = [];
+    // Use a WeakMap to track buffers for automatic cleanup when no longer referenced
+    const buffers = new WeakMap<Buffer, true>();
 
     try {
       // Fetch and process images concurrently
       if (result.images && result.images.length > 0) {
         const imageBuffers = await this.getImageBuffers(result.images);
-        buffers.push(...imageBuffers);
 
         for (let i = 0; i < result.images.length; i++) {
           const imagePath = result.images[i];
           const imageBuffer = imageBuffers[i];
+
+          // Track buffer for cleanup
+          buffers.set(imageBuffer, true);
 
           const fileInfo = extractImageFileInfo(imagePath, 'png');
           const mimeType = validateMimeType(fileInfo.mimeType, IMAGE_MIME_TYPES);
@@ -701,6 +705,9 @@ export class ComfyUIClient {
             fileSize: imageBuffer.length.toString(),
             fileExtension: fileInfo.extension,
           };
+
+          // Allow buffer to be garbage collected after base64 conversion
+          // The base64 string is now the primary data owner
         }
 
         jsonData.imageCount = result.images.length;
@@ -709,11 +716,14 @@ export class ComfyUIClient {
       // Fetch and process videos concurrently
       if (result.videos && result.videos.length > 0) {
         const videoBuffers = await this.getVideoBuffers(result.videos);
-        buffers.push(...videoBuffers);
 
         for (let i = 0; i < result.videos.length; i++) {
           const videoPath = result.videos[i];
           const videoBuffer = videoBuffers[i];
+
+          // Track buffer for cleanup
+          buffers.set(videoBuffer, true);
+
           const fileInfo = extractVideoFileInfo(videoPath, 'mp4');
           const mimeType = validateMimeType(fileInfo.mimeType, VIDEO_MIME_TYPES);
 
@@ -726,6 +736,8 @@ export class ComfyUIClient {
             fileSize: videoBuffer.length.toString(),
             fileExtension: fileInfo.extension,
           };
+
+          // Allow buffer to be garbage collected after base64 conversion
         }
 
         jsonData.videoCount = result.videos.length;
@@ -736,12 +748,8 @@ export class ComfyUIClient {
         binary: binaryData,
       };
     } catch (error) {
-      // Clean up already fetched buffers to prevent memory leaks
-      buffers.forEach(buffer => {
-        if (buffer) {
-          buffer.fill(0); // Zero out sensitive data
-        }
-      });
+      // Error handling - buffers will be cleaned up automatically by WeakMap
+      // No manual cleanup needed as they're local variables
       throw error;
     }
   }

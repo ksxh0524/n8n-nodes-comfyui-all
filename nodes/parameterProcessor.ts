@@ -12,11 +12,14 @@ function safeStringify(obj: unknown): string {
   if (obj === null || obj === undefined) {
     return String(obj);
   }
-  
+
   if (typeof obj !== 'object') {
     return String(obj);
   }
-  
+
+  // Create a new WeakSet for each call to avoid shared state issues
+  const seen = new WeakSet();
+
   try {
     return JSON.stringify(obj, (_, value) => {
       if (typeof value === 'object' && value !== null) {
@@ -36,8 +39,6 @@ function safeStringify(obj: unknown): string {
     return String(obj);
   }
 }
-
-const seen = new WeakSet();
 
 export interface ParameterProcessorConfig {
   executeFunctions: IExecuteFunctions;

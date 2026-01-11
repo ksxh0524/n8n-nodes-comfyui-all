@@ -27,12 +27,14 @@ export class ComfyUi {
     defaults: {
       name: 'ComfyUI',
     },
+    usableAsTool: true, // Enable this node to be used by AI Agents
     inputs: ['main'],
     outputs: ['main'],
     subtitle: 'ComfyUI Integration',
     notes: [
       'Requires a running ComfyUI server',
       'Supports dynamic parameter overrides',
+      'Can be used as a tool by AI Agents',
     ],
     inputSample: {
       comfyUiUrl: 'http://127.0.0.1:8188',
@@ -70,10 +72,10 @@ export class ComfyUi {
           rows: 20,
         },
         required: true,
-        default: '',
+        default: '{\n  "3": {\n    "inputs": {\n      "seed": 123456789,\n      "steps": 20,\n      "cfg": 8,\n      "sampler_name": "euler",\n      "scheduler": "normal",\n      "denoise": 0.75,\n      "model": ["4", 0],\n      "positive": ["6", 0],\n      "negative": ["7", 0],\n      "latent_image": ["5", 0]\n    },\n    "class_type": "KSampler"\n  },\n  "4": {\n    "inputs": {\n      "ckpt_name": "v1-5-pruned-emaonly.ckpt"\n    },\n    "class_type": "CheckpointLoaderSimple"\n  },\n  "5": {\n    "inputs": {\n      "width": 512,\n      "height": 512,\n      "batch_size": 1\n    },\n    "class_type": "EmptyLatentImage"\n  },\n  "6": {\n    "inputs": {\n      "text": "a beautiful landscape"\n    },\n    "class_type": "CLIPTextEncode"\n  },\n  "7": {\n    "inputs": {\n      "text": "text, watermark, ugly, duplicate, low quality"\n    },\n    "class_type": "CLIPTextEncode"\n  },\n  "8": {\n    "inputs": {\n      "samples": ["3", 0],\n      "vae": ["4", 0]\n    },\n    "class_type": "VAEDecode"\n  },\n  "9": {\n    "inputs": {\n      "filename_prefix": "ComfyUI",\n      "images": ["8", 0]\n    },\n    "class_type": "SaveImage"\n  }\n}',
         description: 'Paste your ComfyUI workflow JSON (API Format). In ComfyUI: 1. Design your workflow 2. Click "Save (API Format)" to export 3. Copy generated JSON 4. Paste it here. Tip: Configure all parameters directly in JSON (prompts, resolution, sampling parameters, frames, etc.).',
         placeholder: 'Paste your ComfyUI workflow JSON...\n\n{\n  "3": {\n    "inputs": {\n      "seed": 123456789,\n      "steps": 20,\n      ...\n    },\n    "class_type": "KSampler"\n  }\n}',
-        hint: 'Copy API Format workflow from ComfyUI and paste it here. You can edit all parameters directly in JSON.',
+        hint: 'Copy API Format workflow from ComfyUI and paste it here. A default text-to-image workflow is provided for quick start.',
       },
       {
         displayName: 'Timeout (Seconds)',
@@ -110,6 +112,19 @@ export class ComfyUi {
             description: 'Return URLs only (for AI Agents)',
           },
         ]
+      },
+      {
+        displayName: 'AI Prompt',
+        name: 'aiPrompt',
+        type: 'string',
+        default: '',
+        description: 'Simple prompt for AI Agents (e.g., "a beautiful sunset"). When provided, this will automatically override the text in node ID 6 of the default workflow. For advanced use, leave empty and use Node Parameters instead.',
+        placeholder: 'Enter your prompt here...',
+        displayOptions: {
+          show: {
+            usedAsTool: [true],
+          },
+        },
       },
       {
         displayName: 'Node Parameters',
@@ -349,6 +364,7 @@ export class ComfyUi {
     const timeout = this.getNodeParameter('timeout', 0) as number;
     const outputBinaryKey = validateOutputBinaryKey(this.getNodeParameter('outputBinaryKey', 0) as string);
     const isUsedAsTool = this.getNodeParameter('usedAsTool', 0) as boolean;
+    const aiPrompt = this.getNodeParameter('aiPrompt', 0) as string;
 
     if (!validateUrl(comfyUiUrl)) {
       throw new NodeOperationError(this.getNode(), 'Invalid ComfyUI URL. Must be a valid HTTP/HTTPS URL.');
@@ -367,6 +383,32 @@ export class ComfyUi {
       throw new NodeOperationError(this.getNode(), `Failed to parse workflow JSON: ${errorMsg}. Please ensure the JSON is valid.`);
     }
 
+    // Handle AI Agent prompt - simple interface for AI Agents
+    if (isUsedAsTool && aiPrompt) {
+      // Find the positive prompt node (usually node 6 in default workflow)
+      // and update it with the AI-provided prompt
+      const textNodeIds = Object.keys(workflow).filter(nodeId => {
+        const node = workflow[nodeId];
+        return node.class_type === 'CLIPTextEncode' &&
+               node.inputs &&
+               typeof node.inputs.text === 'string' &&
+               !node.inputs.text.toLowerCase().includes('negative');
+      });
+
+      if (textNodeIds.length > 0) {
+        // Use the first CLIPTextEncode node that's not negative
+        const nodeId = textNodeIds[0];
+        workflow[nodeId].inputs.text = aiPrompt;
+        logger.info(`Updated prompt in node ${nodeId} for AI Agent`, { prompt: aiPrompt });
+      } else {
+        // If no suitable node found, try node 6 (common in default workflow)
+        if (workflow['6'] && workflow['6'].inputs) {
+          workflow['6'].inputs.text = aiPrompt;
+          logger.info(`Updated prompt in node 6 for AI Agent`, { prompt: aiPrompt });
+        }
+      }
+    }
+
     const client = new ComfyUIClient({
       baseUrl: comfyUiUrl,
       timeout: timeout * 1000,
@@ -374,7 +416,12 @@ export class ComfyUi {
       logger: logger,
     });
 
-    logger.info('Starting ComfyUI workflow execution', { url: comfyUiUrl, timeout });
+    logger.info('Starting ComfyUI workflow execution', {
+      url: comfyUiUrl,
+      timeout,
+      isUsedAsTool,
+      hasAiPrompt: !!aiPrompt,
+    });
 
     try {
       const nodeParametersInput = this.getNodeParameter('nodeParameters', 0) as NodeParameterInput;
@@ -406,6 +453,9 @@ export class ComfyUi {
 
       let outputData: INodeExecutionData;
 
+      // When used as a tool by AI Agent, return simplified JSON with URLs
+      // When usedAsTool parameter is true, also return URLs only
+      // Otherwise, return full binary data for n8n workflows
       if (isUsedAsTool) {
         outputData = {
           json: {
