@@ -388,7 +388,6 @@ export class ComfyUi {
 												],
 												displayOptions: {
 													show: {
-														usedAsTool: ['action'],
 														parameterMode: ['single'],
 														type: ['image'],
 													},
@@ -419,7 +418,6 @@ export class ComfyUi {
 												placeholder: 'Enter text...',
 												displayOptions: {
 													show: {
-														usedAsTool: ['action'],
 														parameterMode: ['single'],
 														type: ['text'],
 													},
