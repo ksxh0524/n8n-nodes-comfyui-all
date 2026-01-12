@@ -242,23 +242,18 @@ export class ComfyUi {
         displayName: 'Execution Mode',
         name: 'usedAsTool',
         type: 'options',
-        default: 'auto',
-        description: 'Choose how to use this node. Auto will intelligently detect based on input data.',
+        default: 'action',
+        description: 'Choose how to use this node.',
         options: [
           {
-            name: 'Auto Detect',
-            value: 'auto',
-            description: 'Automatically detect execution mode (Tool vs Workflow)',
+            name: 'Action Mode',
+            value: 'action',
+            description: 'Return binary data (for n8n workflows). Supports URL and Binary image input.',
           },
           {
             name: 'Tool Mode',
             value: 'tool',
-            description: 'Return URLs only (for AI Agents)',
-          },
-          {
-            name: 'Action Mode',
-            value: 'action',
-            description: 'Return binary data (for n8n workflows)',
+            description: 'Return URLs only (for AI Agents). Only supports URL image input.',
           },
         ]
       },
@@ -378,23 +373,19 @@ export class ComfyUi {
 													{
 														name: 'URL',
 														value: 'url',
-														description: 'Download from URL (Available in all modes)',
+														description: 'Download from URL',
 													},
 													{
 														name: 'Binary',
 														value: 'binary',
-														description: 'Use binary data from input (Only available in Action mode)',
-														displayOptions: {
-															show: {
-																usedAsTool: ['action'],
-															},
-														},
+														description: 'Use binary data from input',
 													},
 												],
 												displayOptions: {
 													show: {
 														parameterMode: ['single'],
 														type: ['image'],
+														usedAsTool: ['action', 'auto'],
 													},
 												},
 											},
@@ -522,46 +513,56 @@ export class ComfyUi {
 
     const inputData = this.getInputData();
 
+
     let isToolMode: boolean;
     let modeSource: string;
 
-    if (executionMode === 'auto') {
-      const detection = this.detectExecutionMode(inputData, workflow);
+    // 用户选择的模式（tool 或 action）
+    isToolMode = executionMode === 'tool';
+    modeSource = executionMode === 'tool' ? '手动选择 Tool 模式' : '手动选择 Action 模式';
 
-      logger.info('═══════════════════════════════');
-      logger.info('📊 执行模式检测结果');
-      logger.info('═════════════════════════════');
-      logger.info('🎯 最终决策', {
-        mode: detection.mode,
-        reason: detection.reason,
-      });
-      logger.info('📈 分数统计', {
-        tool: detection.scores.tool,
-        workflow: detection.scores.workflow,
-        total: detection.scores.tool + detection.scores.workflow,
-      });
-      logger.info('🔍 各维度详情');
-      for (const [key, detail] of Object.entries(detection.details) as [string, DetectionResult['details'][string]][]) {
-        const icon = detail.detected ? '✅' : '❌';
-        logger.info(`  ${icon} ${key}:`, {
-          detected: detail.detected,
-          score: detail.score,
-          description: detail.description,
-        });
-      }
-      logger.info('═══════════════════════════');
+    // 运行时验证：检测实际执行模式，与用户选择的模式对比
+    const detection = this.detectExecutionMode(inputData, workflow);
+    const detectedMode = detection.mode === 'tool';
 
-      isToolMode = detection.mode === 'tool';
-      modeSource = '自动检测';
+    // 输出执行模式信息
+    logger.info('═══════════════════════════════');
+    logger.info('📊 执行模式信息');
+    logger.info('═══════════════════════════════');
+    logger.info('👤 用户选择', {
+      mode: isToolMode ? 'Tool' : 'Action',
+      description: isToolMode ? 'Tool 模式 (返回 URL，适合 AI Agent)' : 'Action 模式 (返回二进制数据，适合工作流)',
+      source: modeSource,
+    });
+    logger.info('🔍 实际检测', {
+      detectedMode: detectedMode ? 'Tool' : 'Action',
+      reason: detection.reason,
+      details: detection.mode,
+    });
+
+    // 对比用户选择和实际检测
+    if (isToolMode === detectedMode) {
+      logger.info('✅ 模式匹配', {
+        message: '用户选择与实际检测一致 (' + (isToolMode ? 'Tool' : 'Action') + ' 模式)',
+      });
     } else {
-      isToolMode = executionMode === 'tool';
-      modeSource = executionMode === 'tool' ? '手动选择 Tool 模式' : '手动选择 Action 模式';
-
-      logger.info('执行模式', {
-        mode: isToolMode ? 'Tool' : 'Action',
-        source: modeSource,
+      logger.warn('⚠️ 模式不匹配', {
+        userSelected: isToolMode ? 'Tool' : 'Action',
+        actuallyDetected: detectedMode ? 'Tool' : 'Action',
+        message: isToolMode
+          ? '您选择了 Tool 模式，但检测到工作流特征更像是 Action 模式（如包含二进制数据）'
+          : '您选择了 Action 模式，但检测到工作流特征更像是 Tool 模式（如 AI Agent 调用）',
+        recommendation: isToolMode
+          ? '如果需要使用二进制数据输入，请选择 Action 模式'
+          : '如果是 AI Agent 调用，建议选择 Tool 模式',
       });
     }
+
+    logger.info('🎯 最终执行', {
+      mode: isToolMode ? 'Tool' : 'Action',
+      using: '按用户选择执行 (' + (isToolMode ? 'Tool' : 'Action') + ' 模式)',
+    });
+    logger.info('═══════════════════════════════');
 
     const client = new ComfyUIClient({
       baseUrl: comfyUiUrl,
