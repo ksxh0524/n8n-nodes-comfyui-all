@@ -30,24 +30,15 @@ export class ComfyUi {
 
   /**
    * Multi-dimensional detection for execution mode (Tool vs Workflow)
-   * Uses 6 dimensions to intelligently determine the execution mode
+   * Uses 5 dimensions to intelligently determine the execution mode
    */
   private detectExecutionMode(
     inputData: INodeExecutionData[],
-    aiPrompt: string,
     workflow: Workflow
   ): DetectionResult {
     const details: DetectionResult['details'] = {};
     let toolScore = 0;
     let workflowScore = 0;
-
-    const hasAiPrompt = aiPrompt && aiPrompt.trim().length > 0;
-    details['aiPrompt'] = {
-      detected: !!hasAiPrompt,
-      score: hasAiPrompt ? 3 : 0,
-      description: hasAiPrompt ? 'AI Prompt 参数有值' : 'AI Prompt 参数为空',
-    };
-    if (hasAiPrompt) toolScore += 3;
 
     const hasBinaryData = inputData && inputData.length > 0 &&
                        inputData[0].binary &&
@@ -270,19 +261,6 @@ export class ComfyUi {
             description: 'Return binary data (for n8n workflows)',
           },
         ]
-      },
-      {
-        displayName: 'AI Prompt',
-        name: 'aiPrompt',
-        type: 'string',
-        default: '',
-        description: 'Simple prompt for AI Agents (e.g., "a beautiful sunset"). When provided, this will automatically override the text in the first CLIPTextEncode node. For advanced use, leave empty and use Node Parameters instead. Note: Only applies in Tool mode or Auto-detect mode.',
-        placeholder: 'Enter your prompt here...',
-        displayOptions: {
-          show: {
-            usedAsTool: ['tool', 'auto'],
-          },
-        },
       },
       {
         displayName: 'Node Parameters',
@@ -521,7 +499,6 @@ export class ComfyUi {
     const timeout = this.getNodeParameter('timeout', 0) as number;
     const outputBinaryKey = validateOutputBinaryKey(this.getNodeParameter('outputBinaryKey', 0) as string);
     const executionMode = this.getNodeParameter('usedAsTool', 0) as string;
-    const aiPrompt = this.getNodeParameter('aiPrompt', 0) as string;
 
     if (!validateUrl(comfyUiUrl)) {
       throw new NodeOperationError(this.getNode(), 'ComfyUI URL 格式无效。必须是有效的 HTTP/HTTPS URL。\n提示：支持本地部署地址（如 http://localhost:8188、http://127.0.0.1:8188、http://192.168.x.x:8188 等）。');
@@ -546,7 +523,7 @@ export class ComfyUi {
     let modeSource: string;
 
     if (executionMode === 'auto') {
-      const detection = this.detectExecutionMode(inputData, aiPrompt, workflow);
+      const detection = this.detectExecutionMode(inputData, workflow);
 
       logger.info('═══════════════════════════════');
       logger.info('📊 执行模式检测结果');
@@ -583,51 +560,6 @@ export class ComfyUi {
       });
     }
 
-    if (isToolMode && aiPrompt) {
-      // 智能选择 CLIPTextEncode 节点来更新提示词
-      // 优先级：节点 ID 小的 > 非 negative 的 > 有 text 输入的
-      const textNodeCandidates = Object.entries(workflow)
-        .filter(([, node]) => {
-          if (node.class_type !== 'CLIPTextEncode') return false;
-          if (!node.inputs || typeof node.inputs.text !== 'string') return false;
-
-          const text = node.inputs.text.toLowerCase();
-
-          // 更明确的 negative 检测（避免误判 "myNegativePrompt" 等）
-          const isNegative =
-            text.startsWith('negative') ||
-            text.includes('[negative]') ||
-            text.includes('[NEGATIVE]');
-
-          return !isNegative;
-        })
-        .sort(([idA], [idB]) => {
-          // 优先选择节点 ID 较小的（通常在前面，更可能是主提示词）
-          const numIdA = parseInt(idA) || 999999;
-          const numIdB = parseInt(idB) || 999999;
-          return numIdA - numIdB;
-        });
-
-      if (textNodeCandidates.length > 0) {
-        const [nodeId, node] = textNodeCandidates[0];
-        const previousText = node.inputs.text;
-
-        // 更新提示词
-        workflow[nodeId].inputs.text = aiPrompt;
-
-        logger.info(`Tool 模式：更新提示词到节点 ${nodeId}`, {
-          prompt: aiPrompt,
-          previousText,
-          nodeId,
-        });
-      } else {
-        logger.warn('Tool 模式：未找到合适的 CLIPTextEncode 节点来更新提示词', {
-          prompt: aiPrompt,
-          availableNodes: Object.keys(workflow).filter(id => workflow[id].class_type === 'CLIPTextEncode'),
-        });
-      }
-    }
-
     const client = new ComfyUIClient({
       baseUrl: comfyUiUrl,
       timeout: timeout * 1000,
@@ -640,7 +572,6 @@ export class ComfyUi {
       timeout,
       executionMode: isToolMode ? 'Tool' : 'Action',
       modeSource,
-      hasAiPrompt: !!aiPrompt,
     });
 
     try {
