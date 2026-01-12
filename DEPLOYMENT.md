@@ -1,0 +1,268 @@
+# 部署指南 | Deployment Guide
+
+## 版本信息 | Version Information
+
+- **当前版本**: 2.4.15
+- **构建日期**: 2026-01-12
+- **n8n API 版本**: 1
+- **Node.js 要求**: >= 18.0.0
+
+---
+
+## 部署检查清单 | Deployment Checklist
+
+### 1. 构建验证 | Build Verification ✅
+
+```bash
+# 清理旧的构建
+rm -rf dist/
+
+# 运行完整构建
+npm run build
+
+# 验证构建输出
+ls -la dist/
+ls -la dist/nodes/
+ls -la dist/nodes/ComfyUi/
+```
+
+**预期输出**:
+```
+dist/
+├── index.js                 # 主入口文件
+├── index.d.ts               # TypeScript 类型定义
+├── nodes/
+│   ├── ComfyUi/
+│   │   ├── ComfyUi.node.js  # 节点实现
+│   │   ├── ComfyUi.node.d.ts
+│   │   └── comfyui.svg      # 节点图标
+│   ├── processors/          # 新增：模块化处理器
+│   │   ├── ImageProcessor.js
+│   │   └── ParameterTypeHandler.js
+│   ├── executionModeDetector.js  # 新增：模式检测
+│   ├── parameterProcessor.js
+│   └── [其他模块...]
+```
+
+### 2. 代码质量检查 | Code Quality Verification ✅
+
+```bash
+# TypeScript 编译
+npm run build
+
+# ESLint 检查
+npm run lint
+
+# 预期结果: 0 错误, 0 警告
+```
+
+### 3. 发布文件验证 | Package Files Verification ✅
+
+**package.json 配置**:
+```json
+{
+  "main": "dist/index.js",
+  "exports": {
+    ".": "./dist/index.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "LICENSE",
+    "README.md"
+  ],
+  "n8n": {
+    "n8nNodesApiVersion": 1,
+    "credentials": [],
+    "nodes": [
+      "dist/nodes/ComfyUi/ComfyUi.node.js"
+    ]
+  }
+}
+```
+
+**检查命令**:
+```bash
+# 验证入口点
+cat dist/index.js | grep "nodeClasses"
+
+# 验证节点文件
+test -f dist/nodes/ComfyUi/ComfyUi.node.js && echo "✅ 节点文件存在"
+test -f dist/nodes/ComfyUi/comfyui.svg && echo "✅ 图标文件存在"
+```
+
+---
+
+## 部署步骤 | Deployment Steps
+
+### 选项 A: 发布到 NPM | Publish to NPM
+
+```bash
+# 1. 更新版本号（如需要）
+npm version patch  # 2.4.15 -> 2.4.16
+# 或
+npm version minor  # 2.4.15 -> 2.5.0
+# 或
+npm version major  # 2.4.15 -> 3.0.0
+
+# 2. 运行发布前检查
+npm run prepublishOnly
+
+# 3. 发布到 npm
+npm publish
+
+# 4. 验证发布
+npm view n8n-nodes-comfyui-all
+```
+
+### 选项 B: 本地安装到 n8n | Local Installation
+
+```bash
+# 1. 进入 n8n 目录
+cd ~/.n8n
+
+# 2. 从本地路径安装
+npm install /path/to/n8n-comfyui-nodes
+
+# 3. 或使用相对路径
+npm install ../n8n-comfyui-nodes
+
+# 4. 重启 n8n
+# n8n 会自动加载新节点
+```
+
+### 选项 C: 从 Git 安装 | Install from Git
+
+```bash
+# 在 n8n 目录中
+cd ~/.n8n
+
+# 从 GitHub 安装
+npm install https://github.com/ksxh0524/n8n-nodes-comfyui-all.git
+
+# 或从特定分支/提交
+npm install https://github.com/ksxh0524/n8n-nodes-comfyui-all.git#master
+```
+
+### 选项 D: n8n Cloud 安装 | n8n Cloud Installation
+
+1. 登录 n8n Cloud
+2. 进入 **Settings** → **Community Nodes**
+3. 点击 **Install**
+4. 输入: `n8n-nodes-comfyui-all`
+5. 点击 **Install**
+
+---
+
+## 验证部署 | Verify Deployment
+
+### 1. 检查节点是否加载
+
+在 n8n 中添加新节点时，应该能看到：
+- **ComfyUI** 节点
+- 图标: 🔴 (红色)
+- 分类: Transform
+
+### 2. 测试基本功能
+
+创建一个简单的工作流测试：
+
+```json
+{
+  "nodes": [
+    {
+      "name": "ComfyUI",
+      "type": "n8n-nodes-base.comfyUi",
+      "position": [250, 300],
+      "parameters": {
+        "comfyUiUrl": "http://127.0.0.1:8188",
+        "workflowJson": "{ ... }"
+      }
+    }
+  ]
+}
+```
+
+### 3. 验证模式检测
+
+检查日志输出中的执行模式：
+```
+📊 执行模式检测结果
+═══════════════════════════════
+🎯 最终决策: action
+   原因: 默认 Action 模式（返回完整二进制数据）
+   检测来源: default
+   有二进制数据: 否
+   有输入数据: 否
+═══════════════════════════════
+```
+
+---
+
+## 更新日志 | Changelog
+
+### v2.4.15 (2026-01-12)
+
+**重构改进**:
+- ✨ 统一类型定义：'workflow' → 'action'
+- ✨ 添加模式检测备用机制（检查 n8n context）
+- ✨ 重构参数传递（使用配置对象）
+- ✨ 添加参数类型验证
+- ✨ 统一模块导入（全部 ES6 import）
+- ✨ 优化 booleanValue 类型定义
+
+**代码质量**:
+- 🎯 创建 ESLint v9 flat config
+- 🎯 修复所有 lint 警告
+- 🎯 移除 non-null assertions
+- 🎯 添加显式 null 检查
+
+**架构改进**:
+- 📦 模块化参数处理器
+- 📦 独立的 ImageProcessor
+- 📦 独立的 ParameterTypeHandler
+- 📦 简化的 executionModeDetector
+
+---
+
+## 故障排除 | Troubleshooting
+
+### 节点未显示
+
+```bash
+# 检查节点文件是否正确编译
+test -f dist/nodes/ComfyUi/ComfyUi.node.js || echo "❌ 节点文件缺失"
+
+# 检查 n8n 配置
+cat ~/.n8n/config | grep comfyui
+```
+
+### 模式检测问题
+
+查看 n8n 日志：
+```
+grep "执行模式" ~/.n8n/logs/*.log
+```
+
+### 类型错误
+
+```bash
+# 重新构建
+npm run build
+
+# 检查 TypeScript 错误
+npm run build 2>&1 | grep "error TS"
+```
+
+---
+
+## 联系方式 | Contact
+
+- **GitHub Issues**: https://github.com/ksxh0524/n8n-nodes-comfyui-all/issues
+- **Email**: ksxh0524@outlook.com
+
+---
+
+## 许可证 | License
+
+MIT License - 详见 LICENSE 文件

@@ -41,7 +41,9 @@
     "test": "jest",
     "test:coverage": "jest --coverage",
     "prepublishOnly": "npm run build && npm run lint -s",
-    "docs": "typedoc --out docs --mode modules --excludePrivate --theme minimal"
+    "docs": "typedoc --out docs --mode modules --excludePrivate --theme minimal",
+    "verify": "./scripts/verify-deployment.sh",
+    "clean": "rm -rf dist/"
   },
   "files": [
     "dist",
