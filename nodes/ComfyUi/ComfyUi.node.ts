@@ -239,25 +239,6 @@ export class ComfyUi {
         placeholder: 'data',
       },
       {
-        displayName: 'Execution Mode',
-        name: 'usedAsTool',
-        type: 'options',
-        default: 'action',
-        description: 'Choose how to use this node.',
-        options: [
-          {
-            name: 'Action Mode',
-            value: 'action',
-            description: 'Return binary data (for n8n workflows). Supports URL and Binary image input.',
-          },
-          {
-            name: 'Tool Mode',
-            value: 'tool',
-            description: 'Return URLs only (for AI Agents). Only supports URL image input.',
-          },
-        ]
-      },
-      {
         displayName: 'Node Parameters',
         name: 'nodeParameters',
         type: 'fixedCollection',
@@ -385,7 +366,6 @@ export class ComfyUi {
 													show: {
 														parameterMode: ['single'],
 														type: ['image'],
-														usedAsTool: ['action', 'auto'],
 													},
 												},
 											},
@@ -492,7 +472,6 @@ export class ComfyUi {
     const workflowJson = this.getNodeParameter('workflowJson', 0) as string;
     const timeout = this.getNodeParameter('timeout', 0) as number;
     const outputBinaryKey = validateOutputBinaryKey(this.getNodeParameter('outputBinaryKey', 0) as string);
-    const executionMode = this.getNodeParameter('usedAsTool', 0) as string;
 
     if (!validateUrl(comfyUiUrl)) {
       throw new NodeOperationError(this.getNode(), 'ComfyUI URL 格式无效。必须是有效的 HTTP/HTTPS URL。\n提示：支持本地部署地址（如 http://localhost:8188、http://127.0.0.1:8188、http://192.168.x.x:8188 等）。');
@@ -517,52 +496,46 @@ export class ComfyUi {
     let isToolMode: boolean;
     let modeSource: string;
 
-    // 用户选择的模式（tool 或 action）
-    isToolMode = executionMode === 'tool';
-    modeSource = executionMode === 'tool' ? '手动选择 Tool 模式' : '手动选择 Action 模式';
-
-    // 运行时验证：检测实际执行模式，与用户选择的模式对比
+    // 自动检测执行模式
     const detection = this.detectExecutionMode(inputData, workflow);
-    const detectedMode = detection.mode === 'tool';
+    isToolMode = detection.mode === 'tool';
+    modeSource = '自动检测';
 
     // 输出执行模式信息
     logger.info('═══════════════════════════════');
-    logger.info('📊 执行模式信息');
+    logger.info('📊 执行模式检测结果');
     logger.info('═══════════════════════════════');
-    logger.info('👤 用户选择', {
-      mode: isToolMode ? 'Tool' : 'Action',
-      description: isToolMode ? 'Tool 模式 (返回 URL，适合 AI Agent)' : 'Action 模式 (返回二进制数据，适合工作流)',
-      source: modeSource,
-    });
-    logger.info('🔍 实际检测', {
-      detectedMode: detectedMode ? 'Tool' : 'Action',
+    logger.info('🎯 最终决策', {
+      mode: detection.mode,
       reason: detection.reason,
-      details: detection.mode,
     });
-
-    // 对比用户选择和实际检测
-    if (isToolMode === detectedMode) {
-      logger.info('✅ 模式匹配', {
-        message: '用户选择与实际检测一致 (' + (isToolMode ? 'Tool' : 'Action') + ' 模式)',
+    logger.info('📈 分数统计', {
+      tool: detection.scores.tool,
+      action: detection.scores.workflow,
+      total: detection.scores.tool + detection.scores.workflow,
+    });
+    logger.info('🔍 各维度详情');
+    for (const [key, detail] of Object.entries(detection.details) as [string, DetectionResult['details'][string]][]) {
+      const icon = detail.detected ? '✅' : '❌';
+      logger.info(`  ${icon} ${key}:`, {
+        detected: detail.detected,
+        score: detail.score,
+        description: detail.description,
       });
-    } else {
-      logger.warn('⚠️ 模式不匹配', {
-        userSelected: isToolMode ? 'Tool' : 'Action',
-        actuallyDetected: detectedMode ? 'Tool' : 'Action',
-        message: isToolMode
-          ? '您选择了 Tool 模式，但检测到工作流特征更像是 Action 模式（如包含二进制数据）'
-          : '您选择了 Action 模式，但检测到工作流特征更像是 Tool 模式（如 AI Agent 调用）',
-        recommendation: isToolMode
-          ? '如果需要使用二进制数据输入，请选择 Action 模式'
-          : '如果是 AI Agent 调用，建议选择 Tool 模式',
+    }
+    logger.info('═══════════════════════════════');
+
+    if (isToolMode) {
+      logger.info('⚠️ Tool 模式限制', {
+        message: '当前为 Tool 模式，只支持 URL 图片输入，不支持 Binary 输入',
+        recommendation: '如需使用 Binary 输入，请在工作流中传入二进制数据',
       });
     }
 
-    logger.info('🎯 最终执行', {
-      mode: isToolMode ? 'Tool' : 'Action',
-      using: '按用户选择执行 (' + (isToolMode ? 'Tool' : 'Action') + ' 模式)',
+    logger.info('✅ 最终执行', {
+      mode: detection.mode,
+      using: '按自动检测结果执行 (' + detection.mode + ' 模式)',
     });
-    logger.info('═══════════════════════════════');
 
     const client = new ComfyUIClient({
       baseUrl: comfyUiUrl,
