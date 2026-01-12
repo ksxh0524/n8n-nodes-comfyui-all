@@ -6,7 +6,7 @@
 import { IExecuteFunctions, NodeOperationError } from 'n8n-workflow';
 import type { BinaryData } from '../types';
 import { Logger } from '../logger';
-import { validateExternalUrl } from '../validation';
+import { validateUrl } from '../validation';
 import { generateUniqueFilename, getMaxImageSizeBytes, formatBytes, getMaxBase64Length } from '../utils';
 import { IMAGE_MIME_TYPES, BASE64_DECODE_FACTOR } from '../constants';
 
@@ -65,7 +65,7 @@ export class ImageProcessor {
     const { paramName, imageUrl, index, uploadImage, timeout } = config;
 
     this.validateImageUrl(imageUrl, index);
-    await this.validateExternalUrl(imageUrl, index);
+    await this.validateImageUrlFormat(imageUrl, index);
 
     this.logger.info(`Downloading image from URL`, { url: imageUrl, paramName });
 
@@ -150,15 +150,15 @@ export class ImageProcessor {
   }
 
   /**
-   * Validate external URL format and security
+   * Validate URL format (allows private network addresses for internal use)
    */
-  private async validateExternalUrl(imageUrl: string, index: number): Promise<void> {
+  private async validateImageUrlFormat(imageUrl: string, index: number): Promise<void> {
     try {
-      if (!validateExternalUrl(imageUrl)) {
+      if (!validateUrl(imageUrl)) {
         throw new NodeOperationError(
           this.executeFunctions.getNode(),
           `Node Parameters ${index + 1}: Invalid image URL "${imageUrl}". ` +
-          `Must be a valid HTTP/HTTPS URL and cannot be a private network address.`
+          `Must be a valid HTTP/HTTPS URL.`
         );
       }
     } catch (error) {
