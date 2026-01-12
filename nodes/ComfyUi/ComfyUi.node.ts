@@ -29,130 +29,6 @@ interface DetectionResult {
 export class ComfyUi {
 
   /**
-   * Multi-dimensional detection for execution mode (Tool vs Workflow)
-   * Uses 5 dimensions to intelligently determine the execution mode
-   */
-  private detectExecutionMode(
-    inputData: INodeExecutionData[],
-    workflow: Workflow
-  ): DetectionResult {
-    const details: DetectionResult['details'] = {};
-    let toolScore = 0;
-    let workflowScore = 0;
-
-    const hasBinaryData = inputData && inputData.length > 0 &&
-                       inputData[0].binary &&
-                       Object.keys(inputData[0].binary).length > 0;
-    details['binaryData'] = {
-      detected: !!hasBinaryData,
-      score: hasBinaryData ? 0 : 3,
-      description: hasBinaryData ? '输入包含二进制数据' : '输入不包含二进制数据',
-    };
-    if (hasBinaryData) workflowScore += 3;
-
-    let hasSimpleStructure = false;
-    let hasComplexStructure = false;
-    if (inputData && inputData.length > 0 && inputData[0].json) {
-      const json = inputData[0].json;
-      const keys = Object.keys(json);
-
-      const toolFields = ['prompt', 'imageUrl', 'text', 'description', 'query', 'message'];
-      const hasToolFields = toolFields.some(f => f in json);
-
-      const hasNestedObject = keys.some(k =>
-        typeof json[k] === 'object' && json[k] !== null && !Array.isArray(json[k])
-      );
-      const hasArrayData = keys.some(k => Array.isArray(json[k]));
-
-      hasSimpleStructure = hasToolFields && !hasNestedObject && !hasArrayData;
-      hasComplexStructure = hasNestedObject || hasArrayData;
-    }
-
-    details['dataStructure'] = {
-      detected: hasSimpleStructure,
-      score: hasSimpleStructure ? 2 : (hasComplexStructure ? 0 : 0),
-      description: hasSimpleStructure ? '简单数据结构（Tool 模式特征）' :
-                  hasComplexStructure ? '复杂数据结构（Workflow 模式特征）' :
-                  '无法判断数据结构',
-    };
-    if (hasSimpleStructure) toolScore += 2;
-    if (hasComplexStructure) workflowScore += 0;
-
-    let hasSimpleValues = false;
-    if (inputData && inputData.length > 0 && inputData[0].json) {
-      const json = inputData[0].json;
-      const values = Object.values(json);
-      const allSimple = values.every(v =>
-        typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean'
-      );
-      hasSimpleValues = allSimple && values.length > 0;
-    }
-
-    details['fieldTypes'] = {
-      detected: hasSimpleValues,
-      score: hasSimpleValues ? 1 : 0,
-      description: hasSimpleValues ? '字段值都是简单类型（Tool 模式特征）' : '字段值包含复杂类型',
-    };
-    if (hasSimpleValues) toolScore += 1;
-
-    let fromAiAgent = false;
-    if (inputData && inputData.length > 0 && inputData[0].json) {
-      const json = inputData[0].json;
-      fromAiAgent = 'aiAgentContext' in json ||
-                   'conversationId' in json ||
-                   'toolCallId' in json ||
-                   'isToolCall' in json;
-    }
-
-    details['dataSource'] = {
-      detected: fromAiAgent,
-      score: fromAiAgent ? 2 : 0,
-      description: fromAiAgent ? '检测到 AI Agent 元数据' : '未检测到 AI Agent 元数据',
-    };
-    if (fromAiAgent) toolScore += 2;
-
-    let hasLoadImageNode = false;
-    for (const nodeId in workflow) {
-      const node = workflow[nodeId];
-      if (node.class_type === 'LoadImage' ||
-          node.class_type === 'LoadImageBatch' ||
-          node.class_type === 'LoadImageMask') {
-        hasLoadImageNode = true;
-        break;
-      }
-    }
-
-    details['workflowConfig'] = {
-      detected: hasLoadImageNode,
-      score: hasLoadImageNode ? 1 : 1,
-      description: hasLoadImageNode ? '工作流包含 LoadImage 节点（两种模式都可能）' : '工作流不包含 LoadImage 节点',
-    };
-
-    let mode: 'tool' | 'workflow';
-    let reason: string;
-
-    if (toolScore >= 3) {
-      mode = 'tool';
-      reason = `Tool 分数 (${toolScore}) >= 阈值 (3)`;
-    } else if (workflowScore >= 3) {
-      mode = 'workflow';
-      reason = `Workflow 分数 (${workflowScore}) >= 阈值 (3)`;
-    } else {
-      mode = 'workflow';
-      reason = `默认 Workflow 模式（更安全，Tool 分数: ${toolScore}, Workflow 分数: ${workflowScore}）`;
-    }
-
-    const result: DetectionResult = {
-      mode,
-      reason,
-      scores: { tool: toolScore, workflow: workflowScore },
-      details,
-    };
-
-    return result;
-  }
-
-  /**
    * Node description for n8n
    * Defines the node's properties, inputs, outputs, and configuration options
    */
@@ -446,7 +322,7 @@ export class ComfyUi {
 														value: 'false',
 														description: 'Disable/set to false',
 													},
-													],
+												],
 												displayOptions: {
 													show: {
 														parameterMode: ['single'],
@@ -460,6 +336,130 @@ export class ComfyUi {
       },
     ],
   };
+
+  /**
+   * Multi-dimensional detection for execution mode (Tool vs Workflow)
+   * Uses 5 dimensions to intelligently determine the execution mode
+   */
+  private detectExecutionMode(
+    inputData: INodeExecutionData[],
+    workflow: Workflow
+  ): DetectionResult {
+    const details: DetectionResult['details'] = {};
+    let toolScore = 0;
+    let workflowScore = 0;
+
+    const hasBinaryData = inputData && inputData.length > 0 &&
+                       inputData[0].binary &&
+                       Object.keys(inputData[0].binary).length > 0;
+    details['binaryData'] = {
+      detected: !!hasBinaryData,
+      score: hasBinaryData ? 0 : 3,
+      description: hasBinaryData ? '输入包含二进制数据' : '输入不包含二进制数据',
+    };
+    if (hasBinaryData) workflowScore += 3;
+
+    let hasSimpleStructure = false;
+    let hasComplexStructure = false;
+    if (inputData && inputData.length > 0 && inputData[0].json) {
+      const json = inputData[0].json;
+      const keys = Object.keys(json);
+
+      const toolFields = ['prompt', 'imageUrl', 'text', 'description', 'query', 'message'];
+      const hasToolFields = toolFields.some(f => f in json);
+
+      const hasNestedObject = keys.some(k =>
+        typeof json[k] === 'object' && json[k] !== null && !Array.isArray(json[k])
+      );
+      const hasArrayData = keys.some(k => Array.isArray(json[k]));
+
+      hasSimpleStructure = hasToolFields && !hasNestedObject && !hasArrayData;
+      hasComplexStructure = hasNestedObject || hasArrayData;
+    }
+
+    details['dataStructure'] = {
+      detected: hasSimpleStructure,
+      score: hasSimpleStructure ? 2 : (hasComplexStructure ? 0 : 0),
+      description: hasSimpleStructure ? '简单数据结构（Tool 模式特征）' :
+                  hasComplexStructure ? '复杂数据结构（Workflow 模式特征）' :
+                  '无法判断数据结构',
+    };
+    if (hasSimpleStructure) toolScore += 2;
+    if (hasComplexStructure) workflowScore += 0;
+
+    let hasSimpleValues = false;
+    if (inputData && inputData.length > 0 && inputData[0].json) {
+      const json = inputData[0].json;
+      const values = Object.values(json);
+      const allSimple = values.every(v =>
+        typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean'
+      );
+      hasSimpleValues = allSimple && values.length > 0;
+    }
+
+    details['fieldTypes'] = {
+      detected: hasSimpleValues,
+      score: hasSimpleValues ? 1 : 0,
+      description: hasSimpleValues ? '字段值都是简单类型（Tool 模式特征）' : '字段值包含复杂类型',
+    };
+    if (hasSimpleValues) toolScore += 1;
+
+    let fromAiAgent = false;
+    if (inputData && inputData.length > 0 && inputData[0].json) {
+      const json = inputData[0].json;
+      fromAiAgent = 'aiAgentContext' in json ||
+                   'conversationId' in json ||
+                   'toolCallId' in json ||
+                   'isToolCall' in json;
+    }
+
+    details['dataSource'] = {
+      detected: fromAiAgent,
+      score: fromAiAgent ? 2 : 0,
+      description: fromAiAgent ? '检测到 AI Agent 元数据' : '未检测到 AI Agent 元数据',
+    };
+    if (fromAiAgent) toolScore += 2;
+
+    let hasLoadImageNode = false;
+    for (const nodeId in workflow) {
+      const node = workflow[nodeId];
+      if (node.class_type === 'LoadImage' ||
+          node.class_type === 'LoadImageBatch' ||
+          node.class_type === 'LoadImageMask') {
+        hasLoadImageNode = true;
+        break;
+      }
+    }
+
+    details['workflowConfig'] = {
+      detected: hasLoadImageNode,
+      score: hasLoadImageNode ? 1 : 1,
+      description: hasLoadImageNode ? '工作流包含 LoadImage 节点（两种模式都可能）' : '工作流不包含 LoadImage 节点',
+    };
+
+    let mode: 'tool' | 'workflow';
+    let reason: string;
+
+    if (toolScore >= 3) {
+      mode = 'tool';
+      reason = `Tool 分数 (${toolScore}) >= 阈值 (3)`;
+    } else if (workflowScore >= 3) {
+      mode = 'workflow';
+      reason = `Workflow 分数 (${workflowScore}) >= 阈值 (3)`;
+    } else {
+      mode = 'workflow';
+      reason = `默认 Workflow 模式（更安全，Tool 分数: ${toolScore}, Workflow 分数: ${workflowScore}）`;
+    }
+
+    const result: DetectionResult = {
+      mode,
+      reason,
+      scores: { tool: toolScore, workflow: workflowScore },
+      details,
+    };
+
+    return result;
+  }
 
   /**
    * Execute the ComfyUI workflow
