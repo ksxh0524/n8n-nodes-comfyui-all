@@ -15,6 +15,23 @@ export interface TypeHandlerConfig {
 }
 
 /**
+ * Configuration object for processing parameters by type
+ */
+export interface ProcessByTypeConfig {
+  type: string;
+  nodeId: string;
+  paramName: string;
+  value: string;
+  numberValue: number;
+  booleanValue: string | boolean;
+  imageSource: string;
+  imageUrl: string;
+  index: number;
+  uploadImage: (buffer: Buffer, filename: string) => Promise<string>;
+  timeout: number;
+}
+
+/**
  * Handles processing of different parameter types
  */
 export class ParameterTypeHandler {
@@ -44,6 +61,7 @@ export class ParameterTypeHandler {
 
   /**
    * Process boolean parameter
+   * Accepts both string and boolean types for flexibility
    */
   processBoolean(value: string | boolean): boolean {
     return value === 'true' || value === true;
@@ -52,16 +70,18 @@ export class ParameterTypeHandler {
   /**
    * Process image parameter (delegates to ImageProcessor)
    */
-  async processImage(
-    nodeId: string,
-    paramName: string,
-    imageSource: string,
-    imageUrl: string,
-    value: string,
-    index: number,
-    uploadImage: (buffer: Buffer, filename: string) => Promise<string>,
-    timeout: number
-  ): Promise<string> {
+  async processImage(config: {
+    nodeId: string;
+    paramName: string;
+    imageSource: string;
+    imageUrl: string;
+    value: string;
+    index: number;
+    uploadImage: (buffer: Buffer, filename: string) => Promise<string>;
+    timeout: number;
+  }): Promise<string> {
+    const { nodeId, paramName, imageSource, imageUrl, value, index, uploadImage, timeout } = config;
+
     this.logger.info(`Processing image parameter for node ${nodeId}`, {
       paramName,
       imageSource,
@@ -70,41 +90,31 @@ export class ParameterTypeHandler {
     });
 
     if (imageSource === 'url') {
-      const result = await this.imageProcessor.processFromUrl(
+      const result = await this.imageProcessor.processFromUrl({
         paramName,
         imageUrl,
         index,
         uploadImage,
-        timeout
-      );
+        timeout,
+      });
       return result.filename;
     } else {
-      const result = await this.imageProcessor.processFromBinary(
+      const result = await this.imageProcessor.processFromBinary({
         paramName,
-        value,
+        binaryPropertyName: value,
         index,
-        uploadImage
-      );
+        uploadImage,
+      });
       return result.filename;
     }
   }
 
   /**
-   * Process parameter based on type
+   * Process parameter based on type using configuration object
    */
-  async processByType(
-    type: string,
-    nodeId: string,
-    paramName: string,
-    value: string,
-    numberValue: number,
-    booleanValue: string | boolean,
-    imageSource: string,
-    imageUrl: string,
-    index: number,
-    uploadImage: (buffer: Buffer, filename: string) => Promise<string>,
-    timeout: number
-  ): Promise<unknown> {
+  async processByType(config: ProcessByTypeConfig): Promise<unknown> {
+    const { type, nodeId, paramName, value, numberValue, booleanValue, imageSource, imageUrl, index, uploadImage, timeout } = config;
+
     switch (type) {
       case 'text':
         return this.processText(value);
@@ -116,7 +126,7 @@ export class ParameterTypeHandler {
         return this.processBoolean(booleanValue);
 
       case 'image':
-        return await this.processImage(
+        return await this.processImage({
           nodeId,
           paramName,
           imageSource,
@@ -124,8 +134,8 @@ export class ParameterTypeHandler {
           value,
           index,
           uploadImage,
-          timeout
-        );
+          timeout,
+        });
 
       default:
         throw new NodeOperationError(

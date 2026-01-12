@@ -22,6 +22,17 @@ export interface ParameterProcessorConfig {
 }
 
 /**
+ * Configuration object for processing node parameters
+ * Replaces multiple parameters with a single config object
+ */
+export interface ProcessParametersConfig {
+  nodeParametersInput: { nodeParameter?: NodeParameterConfig[] };
+  workflow: Workflow;
+  uploadImage: (buffer: Buffer, filename: string) => Promise<string>;
+  timeout: number;
+}
+
+/**
  * Main parameter processor that coordinates all parameter processing
  */
 export class ParameterProcessor {
@@ -53,17 +64,11 @@ export class ParameterProcessor {
   /**
    * Process multiple node parameters and apply them to the workflow
    *
-   * @param nodeParametersInput - Node parameter configurations from UI
-   * @param workflow - ComfyUI workflow to modify
-   * @param uploadImage - Function to upload image to ComfyUI
-   * @param timeout - Request timeout in seconds
+   * @param config - Configuration object containing all processing parameters
    */
-  async processNodeParameters(
-    nodeParametersInput: { nodeParameter?: NodeParameterConfig[] },
-    workflow: Workflow,
-    uploadImage: (buffer: Buffer, filename: string) => Promise<string>,
-    timeout: number
-  ): Promise<void> {
+  async processNodeParameters(config: ProcessParametersConfig): Promise<void> {
+    const { nodeParametersInput, workflow, uploadImage, timeout } = config;
+
     if (!nodeParametersInput?.nodeParameter || !Array.isArray(nodeParametersInput.nodeParameter)) {
       this.logger.debug('No node parameters to process');
       return;
@@ -71,8 +76,8 @@ export class ParameterProcessor {
 
     this.logger.debug(`Processing ${nodeParametersInput.nodeParameter.length} node parameter overrides`);
 
-    for (const [index, config] of nodeParametersInput.nodeParameter.entries()) {
-      await this.processSingleParameter(config, index, workflow, uploadImage, timeout);
+    for (const [index, paramConfig] of nodeParametersInput.nodeParameter.entries()) {
+      await this.processSingleParameter(paramConfig, index, workflow, uploadImage, timeout);
     }
 
     this.logger.debug('Completed processing all node parameters');
@@ -113,7 +118,7 @@ export class ParameterProcessor {
     if (parameterMode === 'multiple' && parametersJson) {
       await this.processMultipleParameters(nodeId, parametersJson, index, workflow);
     } else if (parameterMode === 'single' && paramName) {
-      await this.processSingleParameterMode(
+      await this.processSingleParameterMode({
         nodeId,
         paramName,
         type,
@@ -125,8 +130,8 @@ export class ParameterProcessor {
         index,
         workflow,
         uploadImage,
-        timeout
-      );
+        timeout,
+      });
     } else {
       throw new NodeOperationError(
         this.executeFunctions.getNode(),
@@ -155,7 +160,7 @@ export class ParameterProcessor {
   }
 
   /**
-   * Process multiple parameters from JSON
+   * Process multiple parameters from JSON with type validation
    */
   private async processMultipleParameters(
     nodeId: string,
@@ -179,6 +184,9 @@ export class ParameterProcessor {
       );
     }
 
+    // Validate parameter types
+    this.validateParameterTypes(parameters, nodeId, index);
+
     this.logger.debug(`Applying multiple parameters to node ${nodeId}`, { parameters });
 
     // Apply all parameters to the workflow node
@@ -188,22 +196,67 @@ export class ParameterProcessor {
   }
 
   /**
+   * Validate types of parameters
+   * Ensures only safe types are passed to ComfyUI
+   */
+  private validateParameterTypes(
+    parameters: Record<string, unknown>,
+    nodeId: string,
+    index: number
+  ): void {
+    const allowedTypes = ['string', 'number', 'boolean', 'object', 'bigint'];
+
+    for (const [key, value] of Object.entries(parameters)) {
+      const type = typeof value;
+
+      // Reject undefined and function types
+      if (type === 'undefined' || type === 'function' || type === 'symbol') {
+        throw new NodeOperationError(
+          this.executeFunctions.getNode(),
+          `Node Parameters ${index + 1}: Invalid parameter type "${type}" for "${key}". ` +
+          `Allowed types: ${allowedTypes.join(', ')}`
+        );
+      }
+
+      // Warn about object types (might be intentional, but log it)
+      if (type === 'object' && value !== null && !Array.isArray(value)) {
+        this.logger.warn(`Parameter "${key}" in node "${nodeId}" is an object - ensure this is intentional`);
+      }
+    }
+  }
+
+  /**
    * Process single parameter based on its type
    */
-  private async processSingleParameterMode(
-    nodeId: string,
-    paramName: string,
-    type: string,
-    value: string,
-    numberValue: number,
-    booleanValue: string | boolean,
-    imageSource: string,
-    imageUrl: string,
-    index: number,
-    workflow: Workflow,
-    uploadImage: (buffer: Buffer, filename: string) => Promise<string>,
-    timeout: number
-  ): Promise<void> {
+  private async processSingleParameterMode(config: {
+    nodeId: string;
+    paramName: string;
+    type: string;
+    value: string;
+    numberValue: number;
+    booleanValue: string | boolean;
+    imageSource: string;
+    imageUrl: string;
+    index: number;
+    workflow: Workflow;
+    uploadImage: (buffer: Buffer, filename: string) => Promise<string>;
+    timeout: number;
+  }): Promise<void> {
+    const {
+      nodeId,
+      paramName,
+      type,
+      value,
+      numberValue,
+      booleanValue,
+      imageSource,
+      imageUrl,
+      index,
+      workflow,
+      uploadImage,
+      timeout,
+    } = config;
+
     if (!type) {
       throw new NodeOperationError(
         this.executeFunctions.getNode(),
@@ -212,7 +265,7 @@ export class ParameterProcessor {
     }
 
     // Delegate to type handler
-    const parsedValue = await this.typeHandler.processByType(
+    const parsedValue = await this.typeHandler.processByType({
       type,
       nodeId,
       paramName,
@@ -223,8 +276,8 @@ export class ParameterProcessor {
       imageUrl,
       index,
       uploadImage,
-      timeout
-    );
+      timeout,
+    });
 
     // Apply to workflow
     workflow[nodeId].inputs[paramName] = parsedValue;

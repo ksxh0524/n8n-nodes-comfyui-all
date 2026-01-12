@@ -6,6 +6,9 @@
 import { IExecuteFunctions, NodeOperationError } from 'n8n-workflow';
 import type { BinaryData } from '../types';
 import { Logger } from '../logger';
+import { validateExternalUrl } from '../validation';
+import { generateUniqueFilename, getMaxImageSizeBytes, formatBytes, getMaxBase64Length } from '../utils';
+import { IMAGE_MIME_TYPES, BASE64_DECODE_FACTOR } from '../constants';
 
 export interface ImageProcessorConfig {
   executeFunctions: IExecuteFunctions;
@@ -17,6 +20,27 @@ export interface ImageUploadResult {
   filename: string;
   size: number;
   mimeType?: string;
+}
+
+/**
+ * Configuration object for processing image from URL
+ */
+export interface ProcessFromUrlConfig {
+  paramName: string;
+  imageUrl: string;
+  index: number;
+  uploadImage: (buffer: Buffer, filename: string) => Promise<string>;
+  timeout: number;
+}
+
+/**
+ * Configuration object for processing image from binary data
+ */
+export interface ProcessFromBinaryConfig {
+  paramName: string;
+  binaryPropertyName: string;
+  index: number;
+  uploadImage: (buffer: Buffer, filename: string) => Promise<string>;
 }
 
 /**
@@ -35,14 +59,11 @@ export class ImageProcessor {
 
   /**
    * Process image from URL - download and upload to ComfyUI
+   * Uses configuration object instead of multiple parameters
    */
-  async processFromUrl(
-    paramName: string,
-    imageUrl: string,
-    index: number,
-    uploadImage: (buffer: Buffer, filename: string) => Promise<string>,
-    timeout: number
-  ): Promise<ImageUploadResult> {
+  async processFromUrl(config: ProcessFromUrlConfig): Promise<ImageUploadResult> {
+    const { paramName, imageUrl, index, uploadImage, timeout } = config;
+
     this.validateImageUrl(imageUrl, index);
     await this.validateExternalUrl(imageUrl, index);
 
@@ -51,7 +72,7 @@ export class ImageProcessor {
     const imageBuffer = await this.downloadImage(imageUrl, index, timeout);
     this.validateImageSize(imageBuffer, index);
 
-    const filename = this.generateFilename('png', 'download');
+    const filename = generateUniqueFilename('png', 'download');
     this.logger.info(`Uploading image to ComfyUI`, { filename, size: imageBuffer.length });
 
     const uploadedFilename = await uploadImage(imageBuffer, filename);
@@ -63,13 +84,11 @@ export class ImageProcessor {
 
   /**
    * Process image from binary data - extract from input and upload to ComfyUI
+   * Uses configuration object instead of multiple parameters
    */
-  async processFromBinary(
-    paramName: string,
-    binaryPropertyName: string,
-    index: number,
-    uploadImage: (buffer: Buffer, filename: string) => Promise<string>
-  ): Promise<ImageUploadResult> {
+  async processFromBinary(config: ProcessFromBinaryConfig): Promise<ImageUploadResult> {
+    const { paramName, binaryPropertyName, index, uploadImage } = config;
+
     // Tool mode doesn't support binary input
     if (this.isToolMode) {
       throw new NodeOperationError(
@@ -83,15 +102,15 @@ export class ImageProcessor {
       paramName
     });
 
-    const { binaryData, foundItemIndex, availableKeys } = this.findBinaryData(binaryPropertyName || 'data', index);
+    const { binaryData, availableKeys } = this.findBinaryData(binaryPropertyName || 'data', index);
     this.validateBinaryData(binaryData, binaryPropertyName || 'data', index, availableKeys);
 
-    this.logger.debug(`Found binary property "${binaryPropertyName || 'data'}" in input item ${foundItemIndex}`);
+    this.logger.debug(`Found binary property "${binaryPropertyName || 'data'}" in input`);
 
     const buffer = this.decodeBinaryData(binaryData!, index);
     this.validateDecodedBuffer(buffer, binaryPropertyName || 'data', index);
 
-    const filename = binaryData!.fileName || this.generateFilename(
+    const filename = binaryData!.fileName || generateUniqueFilename(
       binaryData!.mimeType?.split('/')[1] || 'png',
       'upload'
     );
@@ -126,12 +145,22 @@ export class ImageProcessor {
    * Validate external URL format and security
    */
   private async validateExternalUrl(imageUrl: string, index: number): Promise<void> {
-    const { validateExternalUrl } = await import('../validation');
-    if (!validateExternalUrl(imageUrl)) {
+    try {
+      if (!validateExternalUrl(imageUrl)) {
+        throw new NodeOperationError(
+          this.executeFunctions.getNode(),
+          `Node Parameters ${index + 1}: Invalid image URL "${imageUrl}". ` +
+          `Must be a valid HTTP/HTTPS URL and cannot be a private network address.`
+        );
+      }
+    } catch (error) {
+      // Handle validation errors
+      if (error instanceof NodeOperationError) {
+        throw error;
+      }
       throw new NodeOperationError(
         this.executeFunctions.getNode(),
-        `Node Parameters ${index + 1}: Invalid image URL "${imageUrl}". ` +
-        `Must be a valid HTTP/HTTPS URL and cannot be a private network address.`
+        `Node Parameters ${index + 1}: URL validation failed - ${error instanceof Error ? error.message : String(error)}`
       );
     }
   }
@@ -198,7 +227,6 @@ export class ImageProcessor {
    * Validate downloaded image size
    */
   private validateImageSize(buffer: Buffer, index: number): void {
-    const { getMaxImageSizeBytes, formatBytes } = require('../utils');
     const maxImageSize = getMaxImageSizeBytes();
 
     if (buffer.length > maxImageSize) {
@@ -214,7 +242,6 @@ export class ImageProcessor {
    */
   private findBinaryData(binaryPropertyName: string, index: number): {
     binaryData: BinaryData | null;
-    foundItemIndex: number;
     availableKeys: string[];
   } {
     const inputData = this.executeFunctions.getInputData(0);
@@ -227,7 +254,6 @@ export class ImageProcessor {
     }
 
     let binaryData: BinaryData | null = null;
-    let foundItemIndex = -1;
     const allAvailableKeys: string[] = [];
 
     for (let i = 0; i < inputData.length; i++) {
@@ -238,13 +264,12 @@ export class ImageProcessor {
 
         if (item.binary[binaryPropertyName]) {
           binaryData = item.binary[binaryPropertyName] as BinaryData;
-          foundItemIndex = i;
           break;
         }
       }
     }
 
-    return { binaryData, foundItemIndex, availableKeys: allAvailableKeys };
+    return { binaryData, availableKeys: allAvailableKeys };
   }
 
   /**
@@ -273,8 +298,6 @@ export class ImageProcessor {
       );
     }
 
-    const { getMaxBase64Length, formatBytes } = require('../utils');
-    const { BASE64_DECODE_FACTOR } = require('../constants');
     const maxBase64Length = getMaxBase64Length();
 
     if (binaryData.data.length > maxBase64Length) {
@@ -291,7 +314,6 @@ export class ImageProcessor {
       );
     }
 
-    const { IMAGE_MIME_TYPES } = require('../constants');
     const mimeType = binaryData.mimeType.toLowerCase();
     const allowedMimeTypes = Object.values(IMAGE_MIME_TYPES);
 
@@ -323,7 +345,6 @@ export class ImageProcessor {
    * Validate decoded buffer size
    */
   private validateDecodedBuffer(buffer: Buffer, binaryPropertyName: string, index: number): void {
-    const { getMaxImageSizeBytes, formatBytes } = require('../utils');
     const maxBufferSize = getMaxImageSizeBytes();
 
     if (buffer.length > maxBufferSize) {
@@ -332,13 +353,5 @@ export class ImageProcessor {
         `Node Parameters ${index + 1}: Decoded buffer for "${binaryPropertyName}" (${formatBytes(buffer.length)}) exceeds maximum allowed size of ${formatBytes(maxBufferSize)}`
       );
     }
-  }
-
-  /**
-   * Generate unique filename for uploaded images
-   */
-  private generateFilename(extension: string, prefix: string): string {
-    const { generateUniqueFilename } = require('../utils');
-    return generateUniqueFilename(extension, prefix);
   }
 }

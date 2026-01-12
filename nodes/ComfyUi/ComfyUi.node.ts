@@ -360,10 +360,10 @@ export class ComfyUi {
     let isToolMode: boolean;
     let modeSource: string;
 
-    // 简化版执行模式检测
-    const detection = detectExecutionMode(inputData);
+    // 简化版执行模式检测（带 context 备用机制）
+    const detection = detectExecutionMode(inputData, (this as { context?: unknown }).context);
     isToolMode = detection.mode === 'tool';
-    modeSource = '自动检测';
+    modeSource = detection.source === 'context' ? 'n8n上下文' : detection.source === 'input-data' ? '输入数据' : '默认';
 
     // 简化的日志输出
     logger.info('═══════════════════════════════');
@@ -372,6 +372,7 @@ export class ComfyUi {
     const logInfo = getDetectionLog(detection, inputData);
     logger.info(`🎯 最终决策: ${detection.mode}`);
     logger.info(`   原因: ${detection.reason}`);
+    logger.info(`   检测来源: ${detection.source}`);
     logger.info(`   有二进制数据: ${logInfo.hasBinaryData ? '是' : '否'}`);
     logger.info(`   有输入数据: ${logInfo.hasInputData ? '是' : '否'}`);
     logger.info('═══════════════════════════════');
@@ -404,12 +405,13 @@ export class ComfyUi {
         isToolMode,
       });
 
-      await parameterProcessor.processNodeParameters(
+      // Use configuration object instead of multiple parameters
+      await parameterProcessor.processNodeParameters({
         nodeParametersInput,
         workflow,
-        (buffer: Buffer, filename: string) => client.uploadImage(buffer, filename),
-        timeout
-      );
+        uploadImage: (buffer: Buffer, filename: string) => client.uploadImage(buffer, filename),
+        timeout,
+      });
 
       logger.info('准备执行工作流', {
         nodeCount: Object.keys(workflow).length,
