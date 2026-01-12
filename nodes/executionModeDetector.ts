@@ -112,68 +112,66 @@ function isFromAiAgentByMetadata(inputData: INodeExecutionData[]): boolean {
  * Heuristic detection based on input characteristics
  * Uses pattern matching to guess execution mode
  *
+ * IMPORTANT: Default to action mode for regular workflows
+ * Only detect as tool when there are STRONG indicators
+ *
  * @param inputData - Input data from n8n
  * @returns Detection result based on heuristics
  */
 function detectByHeuristics(inputData: INodeExecutionData[]): DetectionResult | null {
   if (!inputData || inputData.length === 0) {
+    // No data - likely regular workflow start, default to action
     return null;
   }
 
   const json = inputData[0]?.json;
   const binary = inputData[0]?.binary;
 
-  // Tool mode indicators
-  const toolIndicators = {
-    hasUrl: json && 'imageUrl' in json,
-    hasText: json && 'text' in json,
+  // Strong Tool mode indicators (must have explicit AI tool features)
+  const strongToolIndicators = {
+    hasImageUrl: json && 'imageUrl' in json,
     hasPrompt: json && 'prompt' in json,
-    noBinary: !binary || Object.keys(binary).length === 0,
-    simpleStructure: json && Object.keys(json).length <= 5,
+    hasSimpleTextOnly: json && Object.keys(json).length === 1 && 'text' in json,
+    hasAIContext: json && ('aiPrompt' in json || 'aiAgent' in json || 'chatId' in json),
   };
 
-  // Action mode indicators
-  const actionIndicators = {
+  // Strong Action mode indicators
+  const strongActionIndicators = {
     hasBinary: binary && Object.keys(binary).length > 0,
-    hasComplexData: json && Object.values(json).some(v =>
-      typeof v === 'object' && v !== null && !Array.isArray(v)
-    ),
-    hasWorkflowData: json && ('workflow' in json || 'node' in json),
+    hasWorkflowData: json && ('workflow' in json || 'node' in json || 'workflowJson' in json),
+    hasComfyUIKeys: json && ('nodeParameters' in json || 'workflowJson' in json),
   };
 
-  // Calculate scores
-  let toolScore = 0;
-  let actionScore = 0;
-
-  if (toolIndicators.hasUrl) toolScore += 2;
-  if (toolIndicators.hasText) toolScore += 1;
-  if (toolIndicators.hasPrompt) toolScore += 1;
-  if (toolIndicators.noBinary) toolScore += 1;
-  if (toolIndicators.simpleStructure) toolScore += 1;
-
-  if (actionIndicators.hasBinary) actionScore += 3;
-  if (actionIndicators.hasComplexData) actionScore += 2;
-  if (actionIndicators.hasWorkflowData) actionScore += 2;
-
-  // Decision based on scores
-  if (actionScore >= 3 || actionScore > toolScore) {
+  // Check for strong action indicators first (prioritize action mode)
+  if (strongActionIndicators.hasBinary ||
+      strongActionIndicators.hasWorkflowData ||
+      strongActionIndicators.hasComfyUIKeys) {
     return {
       mode: 'action',
-      reason: `启发式检测：检测到工作流特征 (二进制数据: ${actionIndicators.hasBinary}, 复杂数据: ${actionIndicators.hasComplexData})`,
+      reason: `启发式检测：检测到工作流特征 (二进制: ${strongActionIndicators.hasBinary}, 工作流数据: ${strongActionIndicators.hasWorkflowData})`,
       source: 'heuristics',
       confidence: 'medium',
     };
   }
 
-  if (toolScore >= 3 || toolScore > actionScore) {
+  // Check for strong tool indicators (must have MULTIPLE indicators)
+  const toolIndicatorCount = [
+    strongToolIndicators.hasImageUrl,
+    strongToolIndicators.hasPrompt,
+    strongToolIndicators.hasSimpleTextOnly,
+    strongToolIndicators.hasAIContext,
+  ].filter(Boolean).length;
+
+  if (toolIndicatorCount >= 2) {
     return {
       mode: 'tool',
-      reason: `启发式检测：检测到 AI 工具特征 (URL输入: ${toolIndicators.hasUrl}, 无二进制: ${toolIndicators.noBinary})`,
+      reason: `启发式检测：检测到多个 AI 工具特征 (${toolIndicatorCount}个特征)`,
       source: 'heuristics',
       confidence: 'medium',
     };
   }
 
+  // Default: no strong indicators found - don't guess, let it fall through to default
   return null;
 }
 

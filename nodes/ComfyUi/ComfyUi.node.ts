@@ -104,22 +104,62 @@ export class ComfyUi {
         name: 'executionMode',
         type: 'options',
         default: 'auto',
-        description: 'Control output format. Tool mode returns URLs only (for AI Agents), Action mode returns binary data (for workflows)',
+        description: 'Control output format. Tool mode returns URLs only, Action mode returns binary data',
         options: [
           {
             name: 'Auto Detect',
             value: 'auto',
-            description: 'Automatically detect if called by AI Agent (Tool mode) or workflow (Action mode)',
+            description: 'Automatically detect execution mode based on context',
           },
           {
-            name: 'Tool Mode (URLs only)',
+            name: 'Tool Mode',
             value: 'tool',
-            description: 'Return URLs only, no binary data. Use with AI Agents or when you only need URLs',
+            description: 'Return URLs only, no binary data. Use with AI Agents',
           },
           {
-            name: 'Action Mode (Binary data)',
+            name: 'Action Mode',
             value: 'action',
-            description: 'Return full binary data. Use in workflows when processing images further',
+            description: 'Return full binary data. Use in workflows',
+          },
+        ],
+      },
+      {
+        displayName: 'Tool Mode - Image URLs',
+        name: 'toolModeImageUrls',
+        type: 'fixedCollection',
+        typeOptions: {
+          multipleValues: true,
+          sortable: true,
+        },
+        default: {},
+        description: 'Tool Mode: 配置图片 URL 参数。每个参数对应 ComfyUI 工作流中的一个节点输入',
+        displayOptions: {
+          show: {
+            executionMode: ['tool'],
+          },
+        },
+        options: [
+          {
+            displayName: 'Image URL',
+            name: 'imageUrl',
+            values: [
+              {
+                displayName: 'Node ID',
+                name: 'nodeId',
+                type: 'string',
+                default: '',
+                description: 'ComfyUI 工作流中的节点 ID（例如：13, 3, 6）',
+                placeholder: '13',
+              },
+              {
+                displayName: 'Image URL',
+                name: 'url',
+                type: 'string',
+                default: '',
+                description: '图片的 URL 地址。ComfyUI 会自动下载并上传此图片',
+                placeholder: 'https://example.com/image.png',
+              },
+            ],
           },
         ],
       },
@@ -133,6 +173,11 @@ export class ComfyUi {
         },
         description: 'Override parameters for a node. Click the arrow icon (▼) on each parameter item to collapse/expand it.',
         default: {},
+        displayOptions: {
+          show: {
+            executionMode: ['auto', 'action'],
+          },
+        },
         options: [
           {
             displayName: 'Node Parameter',
@@ -386,45 +431,65 @@ export class ComfyUi {
     let isToolMode: boolean;
     let modeSource: string;
 
+    // 无论用户选择什么，都先进行检测（用于提供建议和警告）
+    const detection = detectExecutionMode(inputData, this);
+
+    // 映射 source 到中文
+    const sourceMap = {
+      'n8n-api': 'n8n API',
+      'execution-context': '执行上下文',
+      'input-data': '输入数据',
+      'heuristics': '启发式检测',
+      'default': '默认',
+    };
+    const detectedSource = sourceMap[detection.source] || detection.source;
+    const detectedMode = detection.mode;
+
+    // 始终显示检测结果（作为参考）
+    logger.info('═══════════════════════════════');
+    logger.info('📊 执行模式检测结果');
+    logger.info('═══════════════════════════════');
+    const logInfo = getDetectionLog(detection, inputData);
+    logger.info(`🎯 自动检测建议: ${detectedMode}`);
+    logger.info(`   原因: ${detection.reason}`);
+    logger.info(`   检测来源: ${detection.source}`);
+    logger.info(`   置信度: ${detection.confidence === 'high' ? '高' : detection.confidence === 'medium' ? '中' : '低'}`);
+    logger.info(`   有二进制数据: ${logInfo.hasBinaryData ? '是' : '否'}`);
+    logger.info(`   有输入数据: ${logInfo.hasInputData ? '是' : '否'}`);
+    logger.info('═══════════════════════════════');
+
     // 根据配置决定执行模式
     if (configuredMode === 'tool') {
       // 用户手动指定 Tool 模式
       isToolMode = true;
       modeSource = '用户配置';
+
+      // 如果检测到了特征（非默认）且建议使用 action 模式，给出警告
+      if (detectedMode === 'action' && detection.source !== 'default') {
+        const confidenceText = detection.confidence === 'high' ? '高' : detection.confidence === 'medium' ? '中' : '低';
+        logger.warn('⚠️  注意: 手动选择 Tool 模式，但自动检测建议使用 Action 模式');
+        logger.warn(`   检测建议: ${detectedMode} 模式 (来源: ${detectedSource}, 置信度: ${confidenceText})`);
+        logger.warn('   建议: 检查执行模式配置是否正确');
+      }
     } else if (configuredMode === 'action') {
       // 用户手动指定 Action 模式
       isToolMode = false;
       modeSource = '用户配置';
+
+      // 如果检测到了特征（非默认）且建议使用 tool 模式，给出警告
+      if (detectedMode === 'tool' && detection.source !== 'default') {
+        const confidenceText = detection.confidence === 'high' ? '高' : detection.confidence === 'medium' ? '中' : '低';
+        logger.warn('⚠️  注意: 手动选择 Action 模式，但自动检测建议使用 Tool 模式');
+        logger.warn(`   检测建议: ${detectedMode} 模式 (来源: ${detectedSource}, 置信度: ${confidenceText})`);
+        logger.warn('   建议: 检查执行模式配置是否正确');
+      }
     } else {
-      // 自动检测模式 - 传入 this 作为 IExecuteFunctions
-      const detection = detectExecutionMode(inputData, this);
-      isToolMode = detection.mode === 'tool';
-
-      // 映射 source 到中文
-      const sourceMap = {
-        'n8n-api': 'n8n API',
-        'execution-context': '执行上下文',
-        'input-data': '输入数据',
-        'heuristics': '启发式检测',
-        'default': '默认',
-      };
-      modeSource = sourceMap[detection.source] || detection.source;
-
-      // 简化的日志输出
-      logger.info('═══════════════════════════════');
-      logger.info('📊 执行模式检测结果');
-      logger.info('═══════════════════════════════');
-      const logInfo = getDetectionLog(detection, inputData);
-      logger.info(`🎯 最终决策: ${detection.mode}`);
-      logger.info(`   原因: ${detection.reason}`);
-      logger.info(`   检测来源: ${detection.source}`);
-      logger.info(`   置信度: ${detection.confidence === 'high' ? '高' : detection.confidence === 'medium' ? '中' : '低'}`);
-      logger.info(`   有二进制数据: ${logInfo.hasBinaryData ? '是' : '否'}`);
-      logger.info(`   有输入数据: ${logInfo.hasInputData ? '是' : '否'}`);
-      logger.info('═══════════════════════════════');
+      // 自动检测模式 - 使用检测结果
+      isToolMode = detectedMode === 'tool';
+      modeSource = detectedSource;
     }
 
-    logger.info(`📋 执行模式配置: ${configuredMode === 'auto' ? '自动检测' : configuredMode === 'tool' ? 'Tool 模式 (URL)' : 'Action 模式 (二进制)'}`);
+    logger.info(`📋 执行模式配置: ${configuredMode === 'auto' ? '自动检测' : configuredMode === 'tool' ? 'Tool 模式' : 'Action 模式'}`);
     logger.info(`🔧 实际执行: ${isToolMode ? 'Tool' : 'Action'} 模式 (来源: ${modeSource})`);
 
     if (isToolMode) {
@@ -448,20 +513,52 @@ export class ComfyUi {
     });
 
     try {
-      const nodeParametersInput = this.getNodeParameter('nodeParameters', 0) as NodeParameterInput;
       const parameterProcessor = new ParameterProcessor({
         executeFunctions: this,
         logger,
         isToolMode,
       });
 
-      // Use configuration object instead of multiple parameters
-      await parameterProcessor.processNodeParameters({
-        nodeParametersInput,
-        workflow,
-        uploadImage: (buffer: Buffer, filename: string) => client.uploadImage(buffer, filename),
-        timeout,
-      });
+      // 检查是否使用 Tool Mode 专用配置
+      if (isToolMode) {
+        const toolModeImageUrls = this.getNodeParameter('toolModeImageUrls', 0) as any;
+
+        if (toolModeImageUrls && toolModeImageUrls.imageUrl && Array.isArray(toolModeImageUrls.imageUrl)) {
+          // 将 Tool Mode 专用配置转换为标准 nodeParameters 格式
+          const nodeParametersInput = {
+            nodeParameter: toolModeImageUrls.imageUrl.map((item: any) => ({
+              nodeId: item.nodeId,
+              parameterMode: 'single',
+              type: 'image',
+              imageSource: 'url',
+              imageUrl: item.url,
+            })),
+          };
+
+          logger.info('Tool Mode: 使用简化的图片 URL 配置', {
+            imageCount: nodeParametersInput.nodeParameter.length,
+          });
+
+          await parameterProcessor.processNodeParameters({
+            nodeParametersInput,
+            workflow,
+            uploadImage: (buffer: Buffer, filename: string) => client.uploadImage(buffer, filename),
+            timeout,
+          });
+        } else {
+          logger.info('Tool Mode: 没有配置图片 URL 参数');
+        }
+      } else {
+        // 使用标准的 nodeParameters
+        const nodeParametersInput = this.getNodeParameter('nodeParameters', 0) as NodeParameterInput;
+
+        await parameterProcessor.processNodeParameters({
+          nodeParametersInput,
+          workflow,
+          uploadImage: (buffer: Buffer, filename: string) => client.uploadImage(buffer, filename),
+          timeout,
+        });
+      }
 
       logger.info('准备执行工作流', {
         nodeCount: Object.keys(workflow).length,
