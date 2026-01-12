@@ -912,6 +912,8 @@ export class ComfyUIClient {
     const bufferTracker = new BufferTracker(VALIDATION.MAX_TOTAL_IMAGE_MEMORY_MB * 1024 * 1024);
 
     try {
+      let fileIndex = 0; // Unified index for all files (images + videos)
+
       // Fetch and process images in batches
       if (result.images && result.images.length > 0) {
         this.logger.info(`开始下载 ${result.images.length} 张图像`);
@@ -929,7 +931,7 @@ export class ComfyUIClient {
           const fileInfo = extractImageFileInfo(imagePath, 'png');
           const mimeType = validateMimeType(fileInfo.mimeType, IMAGE_MIME_TYPES);
 
-          const binaryKey = i === 0 ? outputBinaryKey : `image_${i}`;
+          const binaryKey = `${outputBinaryKey}_${fileIndex++}`;
           binaryData[binaryKey] = {
             data: imageBuffer.toString('base64'),
             mimeType: mimeType,
@@ -969,8 +971,7 @@ export class ComfyUIClient {
           const fileInfo = extractVideoFileInfo(videoPath, 'mp4');
           const mimeType = validateMimeType(fileInfo.mimeType, VIDEO_MIME_TYPES);
 
-          const hasImages = result.images && result.images.length > 0;
-          const binaryKey = (!hasImages && i === 0) ? outputBinaryKey : `video_${i}`;
+          const binaryKey = `${outputBinaryKey}_${fileIndex++}`;
           binaryData[binaryKey] = {
             data: videoBuffer.toString('base64'),
             mimeType: mimeType,
