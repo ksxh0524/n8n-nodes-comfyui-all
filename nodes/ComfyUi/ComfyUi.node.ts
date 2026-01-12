@@ -373,17 +373,17 @@ export class ComfyUi {
 												name: 'imageSource',
 												type: 'options',
 												default: 'url',
-												description: 'How to input image',
+												description: 'How to input image (Note: Binary input is only available in Action mode)',
 												options: [
 													{
 														name: 'URL',
 														value: 'url',
-														description: 'Download from URL',
+														description: 'Download from URL (Available in both Tool and Action modes)',
 													},
 													{
 														name: 'Binary',
 														value: 'binary',
-														description: 'Use binary data from input',
+														description: 'Use binary data from input (Only available in Action mode)',
 													},
 												],
 												displayOptions: {
@@ -577,6 +577,7 @@ export class ComfyUi {
       const parameterProcessor = new ParameterProcessor({
         executeFunctions: this,
         logger,
+        isToolMode,
       });
 
       await parameterProcessor.processNodeParameters(

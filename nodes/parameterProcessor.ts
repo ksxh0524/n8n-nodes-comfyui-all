@@ -43,15 +43,18 @@ function safeStringify(obj: unknown): string {
 export interface ParameterProcessorConfig {
   executeFunctions: IExecuteFunctions;
   logger: Logger;
+  isToolMode?: boolean; // Tool 模式下不支持 binary 输入
 }
 
 export class ParameterProcessor {
   private executeFunctions: IExecuteFunctions;
   private logger: Logger;
+  private isToolMode: boolean;
 
   constructor(config: ParameterProcessorConfig) {
     this.executeFunctions = config.executeFunctions;
     this.logger = config.logger;
+    this.isToolMode = config.isToolMode ?? false;
   }
 
   processTextParameter(value: string): string {
@@ -296,6 +299,14 @@ TIP: Check the previous nodes' "Output Binary Key" parameters. One of them shoul
     timeout: number
   ): Promise<string> {
     this.logger.info(`Processing image parameter for node ${nodeId}`, { paramName, imageSource, imageUrl: imageUrl || 'N/A', value: value || 'N/A' });
+
+    // Tool 模式下不支持 binary 输入
+    if (this.isToolMode && imageSource === 'binary') {
+      throw new NodeOperationError(
+        this.executeFunctions.getNode(),
+        `Node Parameters ${index + 1}: Binary image input is not supported in Tool mode. Please use URL input instead, or switch to Action mode.`
+      );
+    }
 
     if (imageSource === 'url') {
       return await this.processImageFromUrl(paramName, imageUrl, index, uploadImage, timeout);
