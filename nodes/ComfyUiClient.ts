@@ -1,5 +1,5 @@
 import { randomUUID } from 'crypto';
-import { VALIDATION, IMAGE_MIME_TYPES, VIDEO_MIME_TYPES } from './constants';
+import { VALIDATION, DELAY_CONFIG, IMAGE_MIME_TYPES, VIDEO_MIME_TYPES } from './constants';
 import { IExecuteFunctions } from 'n8n-workflow';
 import { Logger } from './logger';
 import { extractImageFileInfo, extractVideoFileInfo, validateMimeType, getMaxImageSizeBytes, getMaxVideoSizeBytes, formatBytes } from './utils';
@@ -7,6 +7,10 @@ import { HttpError, BinaryData, JsonData, ProcessOutput } from './types';
 import { HttpClient } from './HttpClient';
 import { N8nHelpersAdapter } from './N8nHelpersAdapter';
 import { cleanupAllCaches } from './cache';
+
+function isHttpError(error: unknown): error is HttpError {
+  return error !== null && typeof error === 'object' && 'response' in error;
+}
 
 /**
  * Safely stringify error objects, handling circular references
@@ -40,6 +44,80 @@ function safeStringify(obj: unknown): string {
       return obj.message;
     }
     return String(obj);
+  }
+}
+
+/**
+ * Buffer tracking manager for improved memory management
+ * Tracks active buffers with automatic cleanup on errors
+ */
+class BufferTracker {
+  private buffers: Map<Buffer, { timestamp: number; size: number }> = new Map();
+  private totalSize: number = 0;
+  private maxTotalSize: number;
+
+  constructor(maxTotalSize: number = 200 * 1024 * 1024) {
+    this.maxTotalSize = maxTotalSize;
+  }
+
+  /**
+   * Track a buffer
+   * @param buffer - Buffer to track
+   * @returns True if buffer was added, false if memory limit would be exceeded
+   */
+  track(buffer: Buffer): boolean {
+    const size = buffer.length;
+    if (this.totalSize + size > this.maxTotalSize) {
+      return false;
+    }
+    this.buffers.set(buffer, { timestamp: Date.now(), size });
+    this.totalSize += size;
+    return true;
+  }
+
+  /**
+   * Untrack a buffer
+   * @param buffer - Buffer to untrack
+   */
+  untrack(buffer: Buffer): void {
+    const entry = this.buffers.get(buffer);
+    if (entry) {
+      this.totalSize -= entry.size;
+      this.buffers.delete(buffer);
+    }
+  }
+
+  /**
+   * Clear all tracked buffers
+   */
+  clear(): void {
+    this.buffers.clear();
+    this.totalSize = 0;
+  }
+
+  /**
+   * Get current memory usage
+   */
+  getCurrentSize(): number {
+    return this.totalSize;
+  }
+
+  /**
+   * Get buffer count
+   */
+  getCount(): number {
+    return this.buffers.size;
+  }
+
+  /**
+   * Get statistics
+   */
+  getStats(): { count: number; totalSize: number; totalSizeFormatted: string } {
+    return {
+      count: this.buffers.size,
+      totalSize: this.totalSize,
+      totalSizeFormatted: formatBytes(this.totalSize),
+    };
   }
 }
 
@@ -183,20 +261,16 @@ export class ComfyUIClient {
   private async delay(ms: number): Promise<void> {
     const startTime = Date.now();
     const targetTime = startTime + ms;
-    const chunkSize = 50;
+    const chunkSize = DELAY_CONFIG.CHUNK_SIZE_MS;
 
-    // Busy-wait loop with microtask yielding (compliant with n8n community node restrictions)
-    // Optimized: Check every 50ms instead of continuous loop to reduce CPU usage
     while (Date.now() < targetTime) {
       const remaining = targetTime - Date.now();
       if (remaining <= 0) {
         break;
       }
       const waitTime = Math.min(remaining, chunkSize);
-      // Yield control to event loop using microtask queue
       await Promise.resolve();
-      // Additional microtask yields to reduce CPU usage
-      for (let i = 0; i < waitTime / 10; i++) {
+      for (let i = 0; i < waitTime / DELAY_CONFIG.YIELD_INTERVAL_MS; i++) {
         await Promise.resolve();
       }
     }
@@ -215,7 +289,7 @@ export class ComfyUIClient {
   ): Promise<T> {
     // Check if client is destroyed before starting
     if (this.state === ClientState.DESTROYED) {
-      throw new Error('Client has been destroyed');
+      throw new Error('客户端已被销毁');
     }
 
     let lastError: unknown;
@@ -327,12 +401,12 @@ export class ComfyUIClient {
     } catch (error: unknown) {
       this.logger.error('Workflow execution error:', error);
       const err = error instanceof Error ? error : new Error(String(error));
-      const httpError = err as HttpError;
+      const httpError = isHttpError(err) ? err : null;
       this.logger.error('Error details:', {
         message: err.message,
-        statusCode: httpError.response?.statusCode || httpError.statusCode,
-        statusMessage: httpError.response?.statusMessage || httpError.statusMessage,
-        responseBody: httpError.response?.body || httpError.response?.data,
+        statusCode: httpError?.response?.statusCode || httpError?.statusCode,
+        statusMessage: httpError?.response?.statusMessage || httpError?.statusMessage,
+        responseBody: httpError?.response?.body || httpError?.response?.data,
       });
 
       return {
@@ -536,7 +610,7 @@ export class ComfyUIClient {
    */
   async getHistory(limit: number = 100): Promise<Record<string, unknown>> {
     if (this.isClientDestroyed()) {
-      throw new Error('Client has been destroyed');
+      throw new Error('客户端已被销毁');
     }
 
     const response = await this.retryRequest(() =>
@@ -568,7 +642,7 @@ export class ComfyUIClient {
     }
 
     if (imageData.length === 0) {
-      throw new Error('Invalid image data: buffer is empty');
+      throw new Error('无效的图像数据：缓冲区为空');
     }
 
     // Validate image size (maximum 50MB as defined in VALIDATION.MAX_IMAGE_SIZE_MB)
@@ -655,7 +729,7 @@ export class ComfyUIClient {
   private async getBuffer(path: string, resourceType: 'image' | 'video'): Promise<Buffer> {
     try {
       if (this.isClientDestroyed()) {
-        throw new Error('Client has been destroyed');
+        throw new Error('客户端已被销毁');
       }
 
       const response = await this.httpClient.get<ArrayBuffer>(`${this.baseUrl}${path}`, {
@@ -791,10 +865,10 @@ export class ComfyUIClient {
    */
   private formatErrorMessage(error: unknown, context: string = ''): string {
     if (error instanceof Error) {
-      const httpError = error as HttpError;
-      if (httpError.response) {
+      const httpError = isHttpError(error) ? error : null;
+      if (httpError?.response) {
         return `${context}: ${httpError.response.statusCode} ${httpError.response.statusMessage}`;
-      } else if (httpError.statusCode) {
+      } else if (httpError?.statusCode) {
         return `${context}: ${httpError.statusCode} ${httpError.statusMessage || ''}`;
       }
       return context ? `${context}: ${error.message}` : error.message;
@@ -806,7 +880,7 @@ export class ComfyUIClient {
    * Process workflow execution results and format them for n8n output
    *
    * Memory Management Strategy:
-   * - Uses Set to track Buffers for manual cleanup (WeakMap was incorrect)
+   * - Uses BufferTracker to track Buffers with memory limit enforcement
    * - Processes resources in batches to limit concurrent memory usage
    * - Explicitly clears Buffers after base64 conversion
    * - Uses try-finally to ensure cleanup even on errors
@@ -835,8 +909,7 @@ export class ComfyUIClient {
     }
 
     const binaryData: Record<string, BinaryData> = {};
-    // Use Set to track buffers for manual cleanup (WeakMap doesn't work for this use case)
-    const activeBuffers = new Set<Buffer>();
+    const bufferTracker = new BufferTracker(VALIDATION.MAX_TOTAL_IMAGE_MEMORY_MB * 1024 * 1024);
 
     try {
       // Fetch and process images in batches
@@ -849,8 +922,9 @@ export class ComfyUIClient {
           const imagePath = result.images[i];
           const imageBuffer = imageBuffers[i];
 
-          // Track buffer for cleanup
-          activeBuffers.add(imageBuffer);
+          if (!bufferTracker.track(imageBuffer)) {
+            throw new Error(`Memory limit exceeded while processing image ${i + 1}`);
+          }
 
           const fileInfo = extractImageFileInfo(imagePath, 'png');
           const mimeType = validateMimeType(fileInfo.mimeType, IMAGE_MIME_TYPES);
@@ -864,10 +938,7 @@ export class ComfyUIClient {
             fileExtension: fileInfo.extension,
           };
 
-          // Immediately remove buffer from tracking after base64 conversion
-          // The base64 string is now the primary data owner
-          activeBuffers.delete(imageBuffer);
-          // Clear the array reference to help garbage collection
+          bufferTracker.untrack(imageBuffer);
           imageBuffers[i] = null as unknown as Buffer;
         }
 
@@ -885,8 +956,9 @@ export class ComfyUIClient {
           const videoPath = result.videos[i];
           const videoBuffer = videoBuffers[i];
 
-          // Track buffer for cleanup
-          activeBuffers.add(videoBuffer);
+          if (!bufferTracker.track(videoBuffer)) {
+            throw new Error(`Memory limit exceeded while processing video ${i + 1}`);
+          }
 
           const fileInfo = extractVideoFileInfo(videoPath, 'mp4');
           const mimeType = validateMimeType(fileInfo.mimeType, VIDEO_MIME_TYPES);
@@ -901,15 +973,16 @@ export class ComfyUIClient {
             fileExtension: fileInfo.extension,
           };
 
-          // Immediately remove buffer from tracking after base64 conversion
-          activeBuffers.delete(videoBuffer);
-          // Clear the array reference to help garbage collection
-          videoBuffers[i] = null as unknown as Buffer;
+          bufferTracker.untrack(videoBuffer);
+          videoBuffers.splice(i, 1);
+          i--;
         }
 
         jsonData.videoCount = result.videos.length;
         this.logger.info(`成功处理 ${result.videos.length} 个视频`);
       }
+
+      this.logger.debug('Buffer tracking statistics:', bufferTracker.getStats());
 
       return {
         json: jsonData,
@@ -917,12 +990,11 @@ export class ComfyUIClient {
       };
     } catch (error) {
       this.logger.error('处理结果时出错', error);
+      this.logger.warn('Buffer statistics at error:', bufferTracker.getStats());
       throw error;
     } finally {
-      // Final cleanup: clear all remaining buffers
-      activeBuffers.clear();
+      bufferTracker.clear();
 
-      // Force garbage collection if available
       if (global.gc) {
         global.gc();
       }

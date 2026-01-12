@@ -2,6 +2,10 @@ import { HttpError } from './types';
 import { Logger } from './logger';
 import { VALIDATION } from './constants';
 
+function isHttpError(error: unknown): error is HttpError {
+  return error !== null && typeof error === 'object' && 'response' in error;
+}
+
 export interface HttpRequestConfig {
   method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
   url: string;
@@ -103,8 +107,8 @@ export class HttpClient {
 
   private normalizeError(error: unknown): HttpError {
     if (error instanceof Error) {
-      const httpError = error as HttpError;
-      if (httpError.response) {
+      const httpError = isHttpError(error) ? error : null;
+      if (httpError?.response) {
         return {
           name: 'HttpError',
           message: `HTTP ${httpError.response.statusCode} ${httpError.response.statusMessage}`,
@@ -112,7 +116,7 @@ export class HttpClient {
           response: httpError.response,
         };
       }
-      if (httpError.statusCode) {
+      if (httpError?.statusCode) {
         return {
           name: 'HttpError',
           message: `HTTP ${httpError.statusCode} ${httpError.statusMessage || ''}`,
@@ -124,7 +128,7 @@ export class HttpClient {
       return {
         name: error.name,
         message: error.message,
-        code: httpError.code,
+        code: httpError?.code,
       };
     }
     return {

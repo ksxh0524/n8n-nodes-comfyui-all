@@ -17,7 +17,7 @@ import { safeJsonParse } from './validation';
 export function parseWorkflow(workflowJson: string | Workflow): Workflow {
   if (typeof workflowJson === 'string') {
     if (!workflowJson.trim()) {
-      throw new Error('Workflow JSON is empty. Please provide a valid ComfyUI workflow.');
+      throw new Error('工作流 JSON 为空。请提供有效的 ComfyUI 工作流。');
     }
     return safeJsonParse(workflowJson, 'Workflow JSON') as Workflow;
   }

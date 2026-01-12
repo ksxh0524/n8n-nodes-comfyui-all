@@ -83,11 +83,11 @@ export class ComfyUi {
         hint: 'Copy API Format workflow from ComfyUI and paste it here.',
       },
       {
-        displayName: 'Timeout (Seconds)',
+        displayName: 'Timeout',
         name: 'timeout',
         type: 'number',
         default: 300,
-        description: 'Maximum time to wait for workflow execution (in seconds). Default: 300 (5 minutes).',
+        description: 'Maximum time to wait for workflow execution in seconds',
         minValue: 10,
         maxValue: 3600,
       },
@@ -104,7 +104,7 @@ export class ComfyUi {
         name: 'executionMode',
         type: 'options',
         default: 'auto',
-        description: 'Control output format. Tool mode returns URLs only, Action mode returns binary data',
+        description: 'Control output format. Tool mode returns URLs only, Action mode returns binary data.',
         options: [
           {
             name: 'Auto Detect',
@@ -114,52 +114,12 @@ export class ComfyUi {
           {
             name: 'Tool Mode',
             value: 'tool',
-            description: 'Return URLs only, no binary data. Use with AI Agents',
+            description: 'Return URLs only, no binary data. Use with AI Agents.',
           },
           {
             name: 'Action Mode',
             value: 'action',
-            description: 'Return full binary data. Use in workflows',
-          },
-        ],
-      },
-      {
-        displayName: 'Tool Mode - Image URLs',
-        name: 'toolModeImageUrls',
-        type: 'fixedCollection',
-        typeOptions: {
-          multipleValues: true,
-          sortable: true,
-        },
-        default: {},
-        description: 'Tool Mode: 配置图片 URL 参数。每个参数对应 ComfyUI 工作流中的一个节点输入',
-        displayOptions: {
-          show: {
-            executionMode: ['tool'],
-          },
-        },
-        options: [
-          {
-            displayName: 'Image URL',
-            name: 'imageUrl',
-            values: [
-              {
-                displayName: 'Node ID',
-                name: 'nodeId',
-                type: 'string',
-                default: '',
-                description: 'ComfyUI 工作流中的节点 ID（例如：13, 3, 6）',
-                placeholder: '13',
-              },
-              {
-                displayName: 'Image URL',
-                name: 'url',
-                type: 'string',
-                default: '',
-                description: '图片的 URL 地址。ComfyUI 会自动下载并上传此图片',
-                placeholder: 'https://example.com/image.png',
-              },
-            ],
+            description: 'Return full binary data. Use in workflows.',
           },
         ],
       },

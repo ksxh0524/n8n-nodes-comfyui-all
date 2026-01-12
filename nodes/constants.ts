@@ -39,13 +39,13 @@ export const VALIDATION = {
   MAX_IMAGE_SIZE_MB: 50,
   MAX_VIDEO_SIZE_MB: 500,
   MAX_SEED: 2147483647,
-  MIN_FRAMES: 1,
+  MIN_FRAMES:1,
   MAX_FRAMES: 128,
   MIN_DENOISE: 0,
   MAX_DENOISE: 1,
   MAX_WAIT_TIME_MS: 300000,
   REQUEST_TIMEOUT_MS: 300000,
-  DEFAULT_HTTP_TIMEOUT_MS: 30000, // Default timeout for individual HTTP requests (30s)
+  DEFAULT_HTTP_TIMEOUT_MS: 30000,
   POLL_INTERVAL_MS: 1000,
   MAX_RETRIES: 3,
   RETRY_DELAY_MS: 1000,
@@ -53,9 +53,14 @@ export const VALIDATION = {
   MAX_TOTAL_ERRORS: 10,
   MAX_BACKOFF_DELAY_POLLING: 10000,
   MAX_BACKOFF_DELAY_RETRY: 5000,
-  // Batch processing limits to prevent memory overflow
-  CONCURRENT_DOWNLOAD_BATCH_SIZE: 3, // Download 3 images/videos at a time
-  MAX_TOTAL_IMAGE_MEMORY_MB: 200, // Maximum total memory for all images (200MB)
+  CONCURRENT_DOWNLOAD_BATCH_SIZE: 3,
+  MAX_TOTAL_IMAGE_MEMORY_MB: 200,
+} as const;
+
+// Delay optimization constants
+export const DELAY_CONFIG = {
+  CHUNK_SIZE_MS: 100,
+  YIELD_INTERVAL_MS: 20,
 } as const;
 
 // SSRF protection patterns

@@ -38,12 +38,10 @@ export interface DetectionResult {
  * @returns True if called as AI Agent tool
  */
 function isToolExecutionByApi(executeFunctions: IExecuteFunctions): boolean {
-  // Check if isToolExecution method exists and call it
   if (typeof executeFunctions.isToolExecution === 'function') {
     try {
       return executeFunctions.isToolExecution();
-    } catch (error) {
-      // Method exists but failed, fall through to other checks
+    } catch {
       return false;
     }
   }
@@ -57,28 +55,23 @@ function isToolExecutionByApi(executeFunctions: IExecuteFunctions): boolean {
  * @returns True if execution context indicates AI Agent
  */
 function isToolExecutionByContext(executeFunctions: IExecuteFunctions): boolean {
-  // Check execution mode
   if (typeof executeFunctions.getMode === 'function') {
     try {
       const mode = executeFunctions.getMode();
-      // "chat" mode indicates AI Agent/Chat execution
       if (mode === 'chat') {
         return true;
       }
-    } catch (error) {
-      // Continue to other checks
+    } catch {
     }
   }
 
-  // Check execution context
   if (typeof executeFunctions.getExecutionContext === 'function') {
     try {
       const context = executeFunctions.getExecutionContext();
       if (context && 'source' in context && context.source === 'chat') {
         return true;
       }
-    } catch (error) {
-      // Continue to other checks
+    } catch {
     }
   }
 
