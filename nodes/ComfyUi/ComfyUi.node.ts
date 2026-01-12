@@ -373,17 +373,22 @@ export class ComfyUi {
 												name: 'imageSource',
 												type: 'options',
 												default: 'url',
-												description: 'How to input image (Note: Binary input is only available in Action mode)',
+												description: 'How to input image',
 												options: [
 													{
 														name: 'URL',
 														value: 'url',
-														description: 'Download from URL (Available in both Tool and Action modes)',
+														description: 'Download from URL (Available in all modes)',
 													},
 													{
 														name: 'Binary',
 														value: 'binary',
 														description: 'Use binary data from input (Only available in Action mode)',
+														displayOptions: {
+															show: {
+																usedAsTool: ['action'],
+															},
+														},
 													},
 												],
 												displayOptions: {
