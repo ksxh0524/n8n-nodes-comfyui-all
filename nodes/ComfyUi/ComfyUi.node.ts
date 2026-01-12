@@ -474,46 +474,19 @@ export class ComfyUi {
         isToolMode,
       });
 
-      // 检查是否使用 Tool Mode 专用配置
-      if (isToolMode) {
-        const toolModeImageUrls = this.getNodeParameter('toolModeImageUrls', 0) as any;
+      // 统一使用 nodeParameters 参数（Tool 和 Action 模式都使用相同配置方式）
+      const nodeParametersInput = this.getNodeParameter('nodeParameters', 0) as NodeParameterInput;
 
-        if (toolModeImageUrls && toolModeImageUrls.imageUrl && Array.isArray(toolModeImageUrls.imageUrl)) {
-          // 将 Tool Mode 专用配置转换为标准 nodeParameters 格式
-          const nodeParametersInput = {
-            nodeParameter: toolModeImageUrls.imageUrl.map((item: any) => ({
-              nodeId: item.nodeId,
-              parameterMode: 'single',
-              type: 'image',
-              imageSource: 'url',
-              imageUrl: item.url,
-            })),
-          };
+      logger.info(`${isToolMode ? 'Tool' : 'Action'} 模式：处理节点参数`, {
+        parameterCount: nodeParametersInput?.nodeParameter?.length || 0,
+      });
 
-          logger.info('Tool Mode: 使用简化的图片 URL 配置', {
-            imageCount: nodeParametersInput.nodeParameter.length,
-          });
-
-          await parameterProcessor.processNodeParameters({
-            nodeParametersInput,
-            workflow,
-            uploadImage: (buffer: Buffer, filename: string) => client.uploadImage(buffer, filename),
-            timeout,
-          });
-        } else {
-          logger.info('Tool Mode: 没有配置图片 URL 参数');
-        }
-      } else {
-        // 使用标准的 nodeParameters
-        const nodeParametersInput = this.getNodeParameter('nodeParameters', 0) as NodeParameterInput;
-
-        await parameterProcessor.processNodeParameters({
-          nodeParametersInput,
-          workflow,
-          uploadImage: (buffer: Buffer, filename: string) => client.uploadImage(buffer, filename),
-          timeout,
-        });
-      }
+      await parameterProcessor.processNodeParameters({
+        nodeParametersInput,
+        workflow,
+        uploadImage: (buffer: Buffer, filename: string) => client.uploadImage(buffer, filename),
+        timeout,
+      });
 
       logger.info('准备执行工作流', {
         nodeCount: Object.keys(workflow).length,
