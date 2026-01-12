@@ -22,18 +22,21 @@ export interface NodeParameterConfig {
   paramName?: string;
   value?: string;
   numberValue?: number;
-  /** Boolean value - accepts both string ('true'/'false') and boolean for flexibility */
-  booleanValue?: BooleanString;
+  /**
+   * Boolean value - accepts both string ('true'/'false') and boolean
+   * Will be normalized to native boolean internally
+   */
+  booleanValue?: Booleanish;
   imageSource?: 'binary' | 'url';
   imageUrl?: string;
   type?: 'text' | 'number' | 'boolean' | 'image';
 }
 
 /**
- * String representation of boolean values
- * Accepts 'true', 'false', or native boolean type
+ * Boolean value type - accepts string or boolean for flexibility
+ * String values are strictly parsed (only 'true' is truthy)
  */
-export type BooleanString = 'true' | 'false' | boolean;
+export type Booleanish = 'true' | 'false' | boolean;
 
 export interface NodeParameterInput {
   nodeParameter: NodeParameterConfig[];

@@ -33,6 +33,53 @@ export interface ProcessParametersConfig {
 }
 
 /**
+ * Parameter value configuration - grouped by type
+ */
+interface ParameterValueConfig {
+  text?: string;
+  number?: number;
+  boolean?: string | boolean;
+}
+
+/**
+ * Image-specific configuration
+ */
+interface ImageConfig {
+  source: 'binary' | 'url';
+  url?: string;
+  binaryKey?: string;
+}
+
+/**
+ * Optimized configuration for processing single parameter
+ * Groups related fields to reduce parameter count
+ */
+interface SingleParameterProcessConfig {
+  // Node identification
+  nodeId: string;
+  paramName: string;
+
+  // Parameter type
+  type: 'text' | 'number' | 'boolean' | 'image';
+
+  // Value (grouped by type)
+  value: ParameterValueConfig;
+
+  // Image-specific (only used when type === 'image')
+  image?: ImageConfig;
+
+  // Context
+  index: number;
+  workflow: Workflow;
+
+  // Upload function
+  uploadImage: (buffer: Buffer, filename: string) => Promise<string>;
+
+  // Timeout
+  timeout: number;
+}
+
+/**
  * Main parameter processor that coordinates all parameter processing
  */
 export class ParameterProcessor {
@@ -121,12 +168,19 @@ export class ParameterProcessor {
       await this.processSingleParameterMode({
         nodeId,
         paramName,
-        type,
-        value,
-        numberValue,
-        booleanValue,
-        imageSource,
-        imageUrl,
+        type: type as 'text' | 'number' | 'boolean' | 'image',
+        value: {
+          text: value,
+          number: numberValue,
+          boolean: booleanValue,
+        },
+        image: imageSource === 'url' ? {
+          source: 'url',
+          url: imageUrl,
+        } : {
+          source: 'binary',
+          binaryKey: value,
+        },
         index,
         workflow,
         uploadImage,
@@ -227,30 +281,15 @@ export class ParameterProcessor {
 
   /**
    * Process single parameter based on its type
+   * Optimized with grouped configuration interface
    */
-  private async processSingleParameterMode(config: {
-    nodeId: string;
-    paramName: string;
-    type: string;
-    value: string;
-    numberValue: number;
-    booleanValue: string | boolean;
-    imageSource: string;
-    imageUrl: string;
-    index: number;
-    workflow: Workflow;
-    uploadImage: (buffer: Buffer, filename: string) => Promise<string>;
-    timeout: number;
-  }): Promise<void> {
+  private async processSingleParameterMode(config: SingleParameterProcessConfig): Promise<void> {
     const {
       nodeId,
       paramName,
       type,
       value,
-      numberValue,
-      booleanValue,
-      imageSource,
-      imageUrl,
+      image,
       index,
       workflow,
       uploadImage,
@@ -264,14 +303,30 @@ export class ParameterProcessor {
       );
     }
 
+    // Extract value based on type
+    const typeValue = type === 'text' ? value.text :
+                      type === 'number' ? value.number :
+                      type === 'boolean' ? value.boolean :
+                      undefined;
+
+    // Extract image config
+    const imageSource = image?.source === 'url' ? 'url' : 'binary';
+    const imageUrl = image?.url || '';
+    const binaryKey = image?.binaryKey || '';
+
+    // Determine the value parameter based on type
+    const valueParam = type === 'text' ? (typeValue as string) :
+                       type === 'image' && imageSource === 'binary' ? binaryKey :
+                       '';
+
     // Delegate to type handler
     const parsedValue = await this.typeHandler.processByType({
       type,
       nodeId,
       paramName,
-      value,
-      numberValue,
-      booleanValue,
+      value: valueParam,
+      numberValue: type === 'number' ? (typeValue as number) : 0,
+      booleanValue: type === 'boolean' ? (typeValue as string | boolean) : 'false',
       imageSource,
       imageUrl,
       index,

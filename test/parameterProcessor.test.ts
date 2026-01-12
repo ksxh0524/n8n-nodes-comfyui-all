@@ -64,8 +64,9 @@ describe('ParameterProcessor', () => {
     it('should handle string boolean values', () => {
       expect(typeHandler.processBoolean('true')).toBe(true);
       expect(typeHandler.processBoolean('false')).toBe(false);
-      expect(typeHandler.processBoolean('TRUE')).toBe(false);
-      expect(typeHandler.processBoolean('FALSE')).toBe(false);
+      expect(typeHandler.processBoolean('TRUE')).toBe(true);  // Case-insensitive
+      expect(typeHandler.processBoolean('FALSE')).toBe(false); // Case-insensitive
+      expect(typeHandler.processBoolean('TrUe')).toBe(true);  // Case-insensitive
     });
 
     it('should handle actual boolean values', () => {

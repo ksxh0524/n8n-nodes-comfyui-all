@@ -55,16 +55,47 @@ export class ParameterTypeHandler {
   /**
    * Process number parameter
    */
-  processNumber(value: number): number {
-    return value !== undefined ? value : 0;
+  processNumber(value: number | null | undefined): number {
+    return (value !== undefined && value !== null) ? value : 0;
+  }
+
+  /**
+   * Normalize boolean value to native boolean type
+   * Handles string ('true'/'false') and boolean inputs
+   *
+   * @param value - Value to normalize (string or boolean)
+   * @returns Native boolean value
+   *
+   * @example
+   * ```typescript
+   * normalizeBoolean('true')    // true
+   * normalizeBoolean('false')   // false
+   * normalizeBoolean(true)      // true
+   * normalizeBoolean(false)     // false
+   * normalizeBoolean('yes')     // false (strict parsing)
+   * ```
+   */
+  normalizeBoolean(value: string | boolean): boolean {
+    // Handle boolean type
+    if (typeof value === 'boolean') {
+      return value;
+    }
+
+    // Handle string type (strict parsing)
+    if (typeof value === 'string') {
+      return value.toLowerCase() === 'true';
+    }
+
+    // Default to false for any other type
+    return false;
   }
 
   /**
    * Process boolean parameter
-   * Accepts both string and boolean types for flexibility
+   * Uses normalized boolean value for type safety
    */
   processBoolean(value: string | boolean): boolean {
-    return value === 'true' || value === true;
+    return this.normalizeBoolean(value);
   }
 
   /**

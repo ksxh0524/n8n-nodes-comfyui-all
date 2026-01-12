@@ -4,68 +4,12 @@
  * This file contains helper functions for handling binary data and
  * generic workflow parameter updates, without making assumptions about
  * specific ComfyUI node types.
+ *
+ * @module agentToolHelpers
  */
 
 import type { INodeExecutionData } from 'n8n-workflow';
 import type { Workflow, BinaryData } from './types';
-
-/**
- * Extract binary data from input data
- * @param inputData - Input data from n8n
- * @param binaryKey - Binary property key (default: 'data')
- * @returns Binary data or null
- */
-export function extractBinaryData(inputData: INodeExecutionData[], binaryKey: string = 'data'): BinaryData | null {
-  if (!inputData || !Array.isArray(inputData) || inputData.length === 0) {
-    return null;
-  }
-
-  const firstItem = inputData[0];
-  if (!firstItem || !firstItem.binary || !firstItem.binary[binaryKey]) {
-    return null;
-  }
-
-  return firstItem.binary[binaryKey] as BinaryData;
-}
-
-/**
- * Check if input contains binary image data
- * @param inputData - Input data from n8n
- * @returns True if binary data is present
- */
-export function hasBinaryData(inputData: INodeExecutionData[]): boolean {
-  if (!inputData || !Array.isArray(inputData) || inputData.length === 0) {
-    return false;
-  }
-
-  const firstItem = inputData[0];
-  if (!firstItem || !firstItem.binary) {
-    return false;
-  }
-
-  // Check if any binary key exists
-  const binaryKeys = Object.keys(firstItem.binary);
-  return binaryKeys.length > 0;
-}
-
-/**
- * Get first binary key from input data
- * @param inputData - Input data from n8n
- * @returns First binary key or null
- */
-export function getFirstBinaryKey(inputData: INodeExecutionData[]): string | null {
-  if (!inputData || !Array.isArray(inputData) || inputData.length === 0) {
-    return null;
-  }
-
-  const firstItem = inputData[0];
-  if (!firstItem || !firstItem.binary) {
-    return null;
-  }
-
-  const binaryKeys = Object.keys(firstItem.binary);
-  return binaryKeys.length > 0 ? binaryKeys[0] : null;
-}
 
 /**
  * Update a specific node's parameter in a workflow
@@ -74,6 +18,11 @@ export function getFirstBinaryKey(inputData: INodeExecutionData[]): string | nul
  * @param paramPath - The path to the parameter (e.g., 'inputs.text', 'inputs.seed')
  * @param value - The new value
  * @returns Updated workflow (new object, original is not mutated)
+ *
+ * @example
+ * ```typescript
+ * const updated = updateNodeParameter(workflow, '6', 'inputs.text', 'new prompt');
+ * ```
  */
 export function updateNodeParameter(
   workflow: Workflow,
@@ -117,6 +66,14 @@ export function updateNodeParameter(
  * @param workflow - ComfyUI workflow object
  * @param updates - Array of updates to apply
  * @returns Updated workflow
+ *
+ * @example
+ * ```typescript
+ * const updated = updateMultipleParameters(workflow, [
+ *   { nodeId: '6', paramPath: 'inputs.text', value: 'prompt 1' },
+ *   { nodeId: '3', paramPath: 'inputs.steps', value: 30 }
+ * ]);
+ * ```
  */
 export function updateMultipleParameters(
   workflow: Workflow,
@@ -142,6 +99,11 @@ export function updateMultipleParameters(
  * @param nodeId - The ID of the LoadImage node
  * @param imageFilename - The uploaded image filename
  * @returns Updated workflow
+ *
+ * @example
+ * ```typescript
+ * const updated = setLoadImageNode(workflow, '107', 'uploaded_image.png');
+ * ```
  */
 export function setLoadImageNode(
   workflow: Workflow,
@@ -151,3 +113,54 @@ export function setLoadImageNode(
   return updateNodeParameter(workflow, nodeId, 'inputs.image', imageFilename);
 }
 
+/**
+ * Extract binary data from input data
+ * @param inputData - Input data from n8n
+ * @param binaryKey - Binary property key (default: 'data')
+ * @returns Binary data or null
+ *
+ * @example
+ * ```typescript
+ * const binaryData = extractBinaryData(inputData, 'data');
+ * if (binaryData) {
+ *   console.log('Got image:', binaryData.fileName);
+ * }
+ * ```
+ */
+export function extractBinaryData(inputData: INodeExecutionData[], binaryKey: string = 'data'): BinaryData | null {
+  if (!inputData || !Array.isArray(inputData) || inputData.length === 0) {
+    return null;
+  }
+
+  const firstItem = inputData[0];
+  if (!firstItem || !firstItem.binary || !firstItem.binary[binaryKey]) {
+    return null;
+  }
+
+  return firstItem.binary[binaryKey] as BinaryData;
+}
+
+/**
+ * Get first binary key from input data
+ * @param inputData - Input data from n8n
+ * @returns First binary key or null
+ *
+ * @example
+ * ```typescript
+ * const key = getFirstBinaryKey(inputData);
+ * console.log('Binary key:', key); // 'data' or 'image', etc.
+ * ```
+ */
+export function getFirstBinaryKey(inputData: INodeExecutionData[]): string | null {
+  if (!inputData || !Array.isArray(inputData) || inputData.length === 0) {
+    return null;
+  }
+
+  const firstItem = inputData[0];
+  if (!firstItem || !firstItem.binary) {
+    return null;
+  }
+
+  const binaryKeys = Object.keys(firstItem.binary);
+  return binaryKeys.length > 0 ? binaryKeys[0] : null;
+}
