@@ -274,7 +274,12 @@ Main Node: ComfyUi.node.ts
 Test Files: 2 (executionModeDetector, comfyUiClient)
 ```
 
-### 最近改进 | Recent Enhancements (v2.4.15)
+### 最近改进 | Recent Enhancements
+
+**Bug 修复** (Commit: 3891f1b1):
+- ✅ 修复视频处理循环中的索引错误（移除有问题的 splice 操作）
+- ✅ 添加 videoBuffer 空值检查，防止 `undefined` 错误
+- ✅ Tool 模式和 Action 模式 UI 完全一致（移除参数显示限制）
 
 **执行模式控制** (Commit: f83dd965):
 - ✅ 添加 Execution Mode 参数（Auto/Tool/Action）

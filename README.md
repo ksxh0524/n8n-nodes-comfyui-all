@@ -74,7 +74,8 @@ The ComfyUI node supports three execution modes:
 ```
 - Detects AI Agent context
 - Returns image URLs (compact, LLM-friendly)
-- Supports URL image input only
+- Supports URL image input
+- Dynamic parameter overrides
 - Optimized for AI Agent interactions
 
 **Action Mode** (for regular workflows):
@@ -389,6 +390,23 @@ Video generation:      600-1800 seconds
 - Comprehensive type validation
 - All ES6 imports
 - Config object pattern
+
+---
+
+## What's New
+
+### Latest Updates (v2.4.15+)
+
+**Bug Fixes** (Commit: 3891f1b1):
+- ✅ Fixed video processing loop index error
+- ✅ Added null check for videoBuffer to prevent undefined errors
+- ✅ Tool mode and Action mode now have identical UI (both support parameters)
+
+**Recent Enhancements**:
+- ✅ Execution Mode parameter (Auto/Tool/Action)
+- ✅ Multi-layer detection strategy (5 levels)
+- ✅ Smart warning system for mode conflicts
+- ✅ UI text optimization
 
 ---
 
