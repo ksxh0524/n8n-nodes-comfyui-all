@@ -3,6 +3,7 @@
 ## 版本信息 | Version Information
 
 - **当前版本**: 2.4.15
+- **最新提交**: f83dd965
 - **构建日期**: 2026-01-12
 - **n8n API 版本**: 1
 - **Node.js 要求**: >= 18.0.0
@@ -208,8 +209,10 @@ npm install https://github.com/ksxh0524/n8n-nodes-comfyui-all.git#master
 ```
 ComfyUI Node
 ├── executionModeDetector.ts
-│   ├── check n8n context (primary)
-│   ├── check input data markers (fallback)
+│   ├── n8n API check (isToolExecution) - primary
+│   ├── execution context check (getMode) - secondary
+│   ├── AI Agent metadata markers - tertiary
+│   ├── heuristic analysis - fallback
 │   └── default to action mode
 │
 ├── parameterProcessor.ts (coordinator)
@@ -217,22 +220,36 @@ ComfyUI Node
 │   └── ParameterTypeHandler (type conversions)
 │
 └── ComfyUi.node.ts
-    ├── Auto-detect execution mode
+    ├── Execution Mode selection (Auto/Tool/Action)
+    ├── Multi-layer detection
+    ├── Intelligent warnings on conflicts
     ├── Route to tool/action logic
     └── Return appropriate output
 ```
 
 ### 执行模式 | Execution Modes
 
+**Auto Detect** (默认):
+- 自动检测最佳执行模式
+- 多层检测策略
+- 智能冲突警告
+
 **Tool Mode** (AI Agent):
 - 返回图片 URL
 - 不支持 binary 输入
-- 检测来源: n8n context 或输入数据标记
+- 适合 AI Agent 调用
 
 **Action Mode** (Standard Workflow):
 - 返回完整二进制数据
 - 支持 URL 和 binary 输入
-- 默认模式
+- 适合标准工作流
+
+### 智能警告系统
+
+当检测到特征且与用户选择冲突时：
+- 显示检测建议（模式、来源、置信度）
+- 提示检查执行模式配置
+- 帮助避免配置错误
 
 ### 代码质量指标 | Code Quality Metrics
 
@@ -245,40 +262,40 @@ ComfyUI Node
 | 模块化程度 | ✅ 高度模块化 |
 | ES6 imports | ✅ 100% |
 | 配置对象模式 | ✅ 采用 |
+| 测试覆盖 | ✅ 已包含 |
 
 ### 代码统计 | Code Statistics
 
 ```
 Language: TypeScript
 Total Lines: ~3000+
-Modules: 17
+Modules: 18
 Main Node: ComfyUi.node.ts
-Test Coverage: Included
+Test Files: 2 (executionModeDetector, comfyUiClient)
 ```
 
 ### 最近改进 | Recent Enhancements (v2.4.15)
 
-**类型系统**:
-- ✅ 统一类型定义: 'workflow' → 'action'
-- ✅ BooleanString 类型明确 booleanValue
-- ✅ 完整的 TypeScript 类型定义
+**执行模式控制** (Commit: f83dd965):
+- ✅ 添加 Execution Mode 参数（Auto/Tool/Action）
+- ✅ 多层检测策略（5 层）
+- ✅ 智能警告系统（任何检测到特征即警告）
+- ✅ 检测结果始终显示（透明度）
+- ✅ UI 文本优化（移除括号说明）
 
-**模式检测**:
-- ✅ n8n context 检查（主要方法）
-- ✅ 输入数据标记检查（备用方法）
-- ✅ 检测来源追踪 (context/input-data/default)
+**模式检测增强**:
+- ✅ n8n API 检查 (`isToolExecution()`)
+- ✅ 执行上下文检查 (`getMode() === 'chat'`)
+- ✅ AI Agent 元数据标记
+- ✅ 启发式分析（强指标优先）
+- ✅ 检测来源追踪
 
 **代码质量**:
 - ✅ ESLint v9 flat config
 - ✅ 移除所有 non-null assertions
 - ✅ 添加显式 null 检查
 - ✅ 参数类型验证
-
-**架构优化**:
-- ✅ 配置对象代替多参数
-- ✅ 模块化处理器分离
-- ✅ 统一 ES6 import
-- ✅ 错误处理增强
+- ✅ 代码格式化改进
 
 ---
 

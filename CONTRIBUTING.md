@@ -58,23 +58,32 @@ n8n-nodes-comfyui-all/
 │   ├── ComfyUi/
 │   │   ├── ComfyUi.node.ts     # 主节点实现
 │   │   └── comfyui.svg          # 节点图标
-│   ├── ComfyUiTool/
-│   │   ├── ComfyUiTool.node.ts # AI Agent 工具节点
-│   │   └── comfyuitool.svg
+│   ├── processors/              # 模块化处理器
+│   │   ├── ImageProcessor.ts   # 图片处理
+│   │   └── ParameterTypeHandler.ts  # 参数类型处理
 │   ├── ComfyUiClient.ts         # ComfyUI API 客户端
+│   ├── HttpClient.ts            # HTTP 请求封装
 │   ├── constants.ts             # 配置常量
 │   ├── logger.ts                # 日志工具
 │   ├── types.ts                 # TypeScript 类型定义
 │   ├── validation.ts            # 输入验证
 │   ├── errors.ts                # 错误消息
-│   └── cache.ts                 # 缓存层
-├── dist/                        # 编译输出
+│   ├── cache.ts                 # 缓存层
+│   ├── executionModeDetector.ts # 执行模式检测
+│   ├── parameterProcessor.ts   # 参数处理协调器
+│   ├── agentToolHelpers.ts      # AI Agent 工具辅助
+│   ├── utils.ts                 # 工具函数
+│   └── workflowConfig.ts        # 工作流配置
 ├── test/                        # 测试文件
+│   ├── executionModeDetector.test.ts
+│   └── comfyUiClient.test.ts
+├── dist/                        # 编译输出
 ├── index.ts                     # 包入口
 ├── package.json                 # 包配置
 ├── tsconfig.json               # TypeScript 配置
 ├── README.md                   # 用户文档
-└── CONTRIBUTING.md             # 本文档
+├── CONTRIBUTING.md             # 本文档
+└── DEPLOYMENT.md               # 部署文档
 ```
 
 ## 构建命令

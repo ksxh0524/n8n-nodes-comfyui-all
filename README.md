@@ -6,8 +6,10 @@
 
 ## Video Tutorials
 
-- 📺 [YouTube Tutorial](https://youtu.be/wsbo3hBKsPM)
-- 📺 [哔哩哔哩教程](https://www.bilibili.com/video/BV1ffrFBTEdQ/?vd_source=6485fe2fae664d8b09cb2e2fd7df5ef7)
+| Platform | Link | Description |
+|----------|------|-------------|
+| 📺 YouTube | [Watch Tutorial](https://youtu.be/wsbo3hBKsPM) | English tutorial |
+| 📺 Bilibili | [观看教程](https://www.bilibili.com/video/BV1ffrFBTEdQ/?vd_source=6485fe2fae664d8b09cb2e2fd7df5ef7) | 中文教程 |
 
 ## What This Does
 
@@ -15,6 +17,7 @@ This package adds **one intelligent node** to n8n that automatically detects how
 
 **ComfyUI Node** - Universal ComfyUI workflow executor
 - ✅ **Auto-detects execution mode** (Tool for AI Agents or Action for workflows)
+- ✅ **Manual mode override** available
 - ✅ **Works with AI Agents** as a tool
 - ✅ **Works in regular workflows** with full binary support
 - ✅ **Supports URL and binary image input**
@@ -56,17 +59,23 @@ Add the **ComfyUI** node to your workflow! It will automatically detect the best
 
 ## How It Works
 
-### Automatic Mode Detection 🤖
+### Execution Modes
 
-The ComfyUI node intelligently detects how it's being used:
+The ComfyUI node supports three execution modes:
+
+**Auto Detect** (default):
+- Automatically detects the best mode based on context
+- Uses Tool mode when called by AI Agents
+- Uses Action mode for regular workflows
 
 **Tool Mode** (for AI Agents):
 ```
-[Chat Input] → [AI Agent] → [ComfyUI Tool]
+[Chat Input] → [AI Agent] → [ComfyUI]
 ```
 - Detects AI Agent context
 - Returns image URLs (compact, LLM-friendly)
 - Supports URL image input only
+- Optimized for AI Agent interactions
 
 **Action Mode** (for regular workflows):
 ```
@@ -75,13 +84,52 @@ The ComfyUI node intelligently detects how it's being used:
 - Used in standard workflows
 - Returns full binary data
 - Supports URL and binary image input
+- Full workflow integration
 
 ### Detection Priority
 
-The node checks in this order:
-1. **n8n Context** - Checks if called by AI Agent via n8n's context
-2. **Input Data** - Checks for AI Agent markers in input data
-3. **Default** - Falls back to Action mode
+When using Auto Detect mode, the node checks in this order:
+1. **n8n API** - Checks if called by AI Agent via `isToolExecution()`
+2. **Execution Context** - Checks for chat mode context
+3. **Input Data** - Checks for AI Agent markers in input data
+4. **Heuristics** - Analyzes input characteristics
+5. **Default** - Falls back to Action mode
+
+### Smart Warnings
+
+The node provides intelligent warnings when:
+- Manual mode selection conflicts with high-confidence detection
+- Helps prevent configuration mistakes
+- Always shows detection results for transparency
+
+---
+
+## Parameters Explained
+
+### Main Parameters
+
+| Parameter | What It Does | Example |
+|-----------|--------------|---------|
+| **ComfyUI URL** | Where ComfyUI is running | `http://127.0.0.1:8188` |
+| **Workflow JSON** | Your ComfyUI workflow (API format) | `{...}` |
+| **Timeout** | Max wait time for execution (seconds) | `300` (5 minutes) |
+| **Output Binary Key** | Property name for output binary data | `data` |
+| **Execution Mode** | Auto/Tool/Action mode selection | `Auto Detect` |
+| **Node Parameters** | Dynamic workflow parameter overrides | See below |
+
+### Node Parameters
+
+These allow you to dynamically override any value in your ComfyUI workflow.
+
+| Field | What It Does |
+|-------|--------------|
+| **Node ID** | The ComfyUI node to change (e.g., "6", "13") |
+| **Parameter Mode** | "Single" for one parameter, "Multiple" for JSON object |
+| **Type** | Text, Number, Boolean, or Image |
+| **Value** | The value to set (for single mode) |
+| **Image Input Type** | URL or Binary (for image type) |
+| **Image URL** | URL of image (when using URL input) |
+| **Parameters JSON** | JSON object with multiple parameters |
 
 ---
 
@@ -99,6 +147,7 @@ The node checks in this order:
 2. Configure ComfyUI node:
    - **ComfyUI URL**: `http://127.0.0.1:8188`
    - **Workflow JSON**: Your text-to-image workflow
+   - **Execution Mode**: `Auto Detect`
    - **Timeout**: `300`
 
 **Chat:**
@@ -133,6 +182,7 @@ AI: I'll generate that image for you!
 ```
 ComfyUI URL: http://127.0.0.1:8188
 Workflow JSON: [Your image processing workflow]
+Execution Mode: Action Mode
 
 Node Parameters:
   Node ID: 107
@@ -166,6 +216,7 @@ Node Parameters:
 ComfyUI Node:
   ComfyUI URL: http://127.0.0.1:8188
   Workflow JSON: [Text-to-Image workflow]
+  Execution Mode: Auto Detect
 
 Node Parameters:
   Node ID: 6 (CLIP Text node)
@@ -213,34 +264,6 @@ Same as image generation, just use a video workflow!
 
 ---
 
-## Parameters Explained
-
-### Main Parameters
-
-| Parameter | What It Does | Example |
-|-----------|--------------|---------|
-| **ComfyUI URL** | Where ComfyUI is running | `http://127.0.0.1:8188` |
-| **Workflow JSON** | Your ComfyUI workflow (API format) | `{...}` |
-| **Timeout (Seconds)** | Max wait time for execution | `300` (5 minutes) |
-| **Output Binary Key** | Property name for output binary data | `data` |
-| **Node Parameters** | Dynamic workflow parameter overrides | See below |
-
-### Node Parameters
-
-These allow you to dynamically override any value in your ComfyUI workflow.
-
-| Field | What It Does |
-|-------|--------------|
-| **Node ID** | The ComfyUI node to change (e.g., "6", "13") |
-| **Parameter Mode** | "Single" for one parameter, "Multiple" for JSON object |
-| **Type** | Text, Number, Boolean, or Image |
-| **Value** | The value to set (for single mode) |
-| **Image Input Type** | URL or Binary (for image type) |
-| **Image URL** | URL of image (when using URL input) |
-| **Parameters JSON** | JSON object with multiple parameters |
-
----
-
 ## How to Get Your Workflow JSON
 
 1. Open ComfyUI
@@ -272,11 +295,13 @@ The `"6"` is your Node ID!
 - Working with AI Agents (smaller context)
 - Images are publicly accessible
 - Processing multiple images
+- Tool Mode execution
 
 **Use Binary when:**
 - Images are from previous n8n nodes
 - Working with local files
 - Need full image data in workflow
+- Action Mode execution
 
 ### ✅ Test First
 
@@ -289,6 +314,13 @@ Simple workflows:      60-120 seconds
 Complex workflows:     300-600 seconds
 Video generation:      600-1800 seconds
 ```
+
+### ✅ Execution Mode Tips
+
+- Use **Auto Detect** for most cases
+- Use **Tool Mode** when specifically working with AI Agents
+- Use **Action Mode** for standard workflow processing
+- Check n8n logs for detection results and warnings
 
 ---
 
@@ -322,32 +354,41 @@ Video generation:      600-1800 seconds
 - Check the workflow JSON is set
 - Try being more specific in your chat: "Generate an image of..." instead of "Help me with images"
 
+### "Tool mode doesn't support binary input"
+- Use URL input instead of binary in Tool mode
+- Or switch to Action mode if you need binary support
+
 ---
 
 ## Architecture & Improvements
 
 ### Recent Enhancements (v2.4.15)
 
-**🎯 Unified Type Definitions**
-- Changed from 'workflow' to 'action' mode
-- Aligned with n8n terminology
+**🎯 Execution Mode Control**
+- Auto Detect mode for smart detection
+- Manual Tool/Action mode override
+- Intelligent warnings on mode conflicts
 
 **🤖 Smart Mode Detection**
-- Primary: n8n context detection
-- Fallback: Input data markers
+- Primary: n8n API `isToolExecution()`
+- Secondary: Execution context (chat mode)
+- Tertiary: AI Agent metadata markers
+- Fallback: Heuristic analysis
 - Default: Action mode
 
 **📦 Modular Architecture**
 - `ImageProcessor` - Dedicated image handling
 - `ParameterTypeHandler` - Type conversion logic
 - `ParameterProcessor` - Main coordinator
-- `executionModeDetector` - Mode detection logic
+- `executionModeDetector` - Multi-layer mode detection
+- `ComfyUiClient` - HTTP client with retry logic
 
 **✅ Code Quality**
 - ESLint v9 flat config
 - Zero non-null assertions
 - Comprehensive type validation
 - All ES6 imports
+- Config object pattern
 
 ---
 
