@@ -251,6 +251,7 @@ export class ComfyUi {
 													show: {
 														parameterMode: ['single'],
 														type: ['image'],
+														executionMode: ['auto', 'action'],
 													},
 												},
 											},
