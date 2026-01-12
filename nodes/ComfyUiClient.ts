@@ -956,6 +956,12 @@ export class ComfyUIClient {
           const videoPath = result.videos[i];
           const videoBuffer = videoBuffers[i];
 
+          // Validate video buffer exists
+          if (!videoBuffer) {
+            this.logger.warn(`Video buffer at index ${i} is undefined, skipping`);
+            continue;
+          }
+
           if (!bufferTracker.track(videoBuffer)) {
             throw new Error(`Memory limit exceeded while processing video ${i + 1}`);
           }
@@ -974,8 +980,6 @@ export class ComfyUIClient {
           };
 
           bufferTracker.untrack(videoBuffer);
-          videoBuffers.splice(i, 1);
-          i--;
         }
 
         jsonData.videoCount = result.videos.length;

@@ -133,11 +133,6 @@ export class ComfyUi {
         },
         description: 'Override parameters for a node. Click the arrow icon (▼) on each parameter item to collapse/expand it.',
         default: {},
-        displayOptions: {
-          show: {
-            executionMode: ['auto', 'action'],
-          },
-        },
         options: [
           {
             displayName: 'Node Parameter',
