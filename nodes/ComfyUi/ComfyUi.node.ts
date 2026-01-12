@@ -100,6 +100,30 @@ export class ComfyUi {
         placeholder: 'data',
       },
       {
+        displayName: 'Execution Mode',
+        name: 'executionMode',
+        type: 'options',
+        default: 'auto',
+        description: 'Control output format. Tool mode returns URLs only (for AI Agents), Action mode returns binary data (for workflows)',
+        options: [
+          {
+            name: 'Auto Detect',
+            value: 'auto',
+            description: 'Automatically detect if called by AI Agent (Tool mode) or workflow (Action mode)',
+          },
+          {
+            name: 'Tool Mode (URLs only)',
+            value: 'tool',
+            description: 'Return URLs only, no binary data. Use with AI Agents or when you only need URLs',
+          },
+          {
+            name: 'Action Mode (Binary data)',
+            value: 'action',
+            description: 'Return full binary data. Use in workflows when processing images further',
+          },
+        ],
+      },
+      {
         displayName: 'Node Parameters',
         name: 'nodeParameters',
         type: 'fixedCollection',
@@ -356,32 +380,58 @@ export class ComfyUi {
 
     const inputData = this.getInputData();
 
+    // 获取用户配置的执行模式
+    const configuredMode = this.getNodeParameter('executionMode', 0) as 'auto' | 'tool' | 'action';
 
     let isToolMode: boolean;
     let modeSource: string;
 
-    // 简化版执行模式检测（带 context 备用机制）
-    const detection = detectExecutionMode(inputData, (this as { context?: unknown }).context);
-    isToolMode = detection.mode === 'tool';
-    modeSource = detection.source === 'context' ? 'n8n上下文' : detection.source === 'input-data' ? '输入数据' : '默认';
+    // 根据配置决定执行模式
+    if (configuredMode === 'tool') {
+      // 用户手动指定 Tool 模式
+      isToolMode = true;
+      modeSource = '用户配置';
+    } else if (configuredMode === 'action') {
+      // 用户手动指定 Action 模式
+      isToolMode = false;
+      modeSource = '用户配置';
+    } else {
+      // 自动检测模式 - 传入 this 作为 IExecuteFunctions
+      const detection = detectExecutionMode(inputData, this);
+      isToolMode = detection.mode === 'tool';
 
-    // 简化的日志输出
-    logger.info('═══════════════════════════════');
-    logger.info('📊 执行模式检测结果');
-    logger.info('═══════════════════════════════');
-    const logInfo = getDetectionLog(detection, inputData);
-    logger.info(`🎯 最终决策: ${detection.mode}`);
-    logger.info(`   原因: ${detection.reason}`);
-    logger.info(`   检测来源: ${detection.source}`);
-    logger.info(`   有二进制数据: ${logInfo.hasBinaryData ? '是' : '否'}`);
-    logger.info(`   有输入数据: ${logInfo.hasInputData ? '是' : '否'}`);
-    logger.info('═══════════════════════════════');
+      // 映射 source 到中文
+      const sourceMap = {
+        'n8n-api': 'n8n API',
+        'execution-context': '执行上下文',
+        'input-data': '输入数据',
+        'heuristics': '启发式检测',
+        'default': '默认',
+      };
+      modeSource = sourceMap[detection.source] || detection.source;
+
+      // 简化的日志输出
+      logger.info('═══════════════════════════════');
+      logger.info('📊 执行模式检测结果');
+      logger.info('═══════════════════════════════');
+      const logInfo = getDetectionLog(detection, inputData);
+      logger.info(`🎯 最终决策: ${detection.mode}`);
+      logger.info(`   原因: ${detection.reason}`);
+      logger.info(`   检测来源: ${detection.source}`);
+      logger.info(`   置信度: ${detection.confidence === 'high' ? '高' : detection.confidence === 'medium' ? '中' : '低'}`);
+      logger.info(`   有二进制数据: ${logInfo.hasBinaryData ? '是' : '否'}`);
+      logger.info(`   有输入数据: ${logInfo.hasInputData ? '是' : '否'}`);
+      logger.info('═══════════════════════════════');
+    }
+
+    logger.info(`📋 执行模式配置: ${configuredMode === 'auto' ? '自动检测' : configuredMode === 'tool' ? 'Tool 模式 (URL)' : 'Action 模式 (二进制)'}`);
+    logger.info(`🔧 实际执行: ${isToolMode ? 'Tool' : 'Action'} 模式 (来源: ${modeSource})`);
 
     if (isToolMode) {
       logger.info('⚠️ Tool 模式: 只支持 URL 图片输入，不支持 Binary 输入');
     }
 
-    logger.info(`✅ 最终执行: ${detection.mode} 模式 (按自动检测结果)`);
+    logger.info(`✅ 最终执行: ${isToolMode ? 'tool' : 'action'} 模式 (来源: ${modeSource})`);
 
     const client = new ComfyUIClient({
       baseUrl: comfyUiUrl,
