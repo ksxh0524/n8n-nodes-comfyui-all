@@ -191,12 +191,12 @@ describe('ParameterProcessor', () => {
         ],
       };
 
-      await processor.processNodeParameters(
-        nodeParameters as any,
-        mockWorkflow,
-        mockUploadImage,
-        30000
-      );
+      await processor.processNodeParameters({
+        nodeParametersInput: nodeParameters as any,
+        workflow: mockWorkflow,
+        uploadImage: mockUploadImage,
+        timeout: 30000,
+      });
 
       expect(mockWorkflow['3'].inputs.seed).toBe(111111111);
       expect(mockWorkflow['3'].inputs.steps).toBe(30);
@@ -217,12 +217,12 @@ describe('ParameterProcessor', () => {
       };
 
       await expect(
-        processor.processNodeParameters(
-          nodeParameters as any,
-          mockWorkflow,
-          mockUploadImage,
-          30000
-        )
+        processor.processNodeParameters({
+          nodeParametersInput: nodeParameters as any,
+          workflow: mockWorkflow,
+          uploadImage: mockUploadImage,
+          timeout: 30000,
+        })
       ).rejects.toThrow();
     });
 
@@ -240,22 +240,22 @@ describe('ParameterProcessor', () => {
       };
 
       await expect(
-        processor.processNodeParameters(
-          nodeParameters as any,
-          mockWorkflow,
-          mockUploadImage,
-          30000
-        )
+        processor.processNodeParameters({
+          nodeParametersInput: nodeParameters as any,
+          workflow: mockWorkflow,
+          uploadImage: mockUploadImage,
+          timeout: 30000,
+        })
       ).rejects.toThrow('Node ID "999" not found in workflow');
     });
 
     it('should handle empty node parameters', async () => {
-      await processor.processNodeParameters(
-        {},
-        mockWorkflow,
-        mockUploadImage,
-        30000
-      );
+      await processor.processNodeParameters({
+        nodeParametersInput: {},
+        workflow: mockWorkflow,
+        uploadImage: mockUploadImage,
+        timeout: 30000,
+      });
 
       // Should not throw and workflow should be unchanged
       expect(mockWorkflow['3'].inputs.seed).toBe(123456789);

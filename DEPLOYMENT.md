@@ -199,29 +199,86 @@ npm install https://github.com/ksxh0524/n8n-nodes-comfyui-all.git#master
 
 ---
 
-## 更新日志 | Changelog
+## 架构与代码质量 | Architecture & Code Quality
 
-### v2.4.15 (2026-01-12)
+### 核心架构设计
 
-**重构改进**:
-- ✨ 统一类型定义：'workflow' → 'action'
-- ✨ 添加模式检测备用机制（检查 n8n context）
-- ✨ 重构参数传递（使用配置对象）
-- ✨ 添加参数类型验证
-- ✨ 统一模块导入（全部 ES6 import）
-- ✨ 优化 booleanValue 类型定义
+节点采用智能模式检测架构：
+
+```
+ComfyUI Node
+├── executionModeDetector.ts
+│   ├── check n8n context (primary)
+│   ├── check input data markers (fallback)
+│   └── default to action mode
+│
+├── parameterProcessor.ts (coordinator)
+│   ├── ImageProcessor (URL & binary handling)
+│   └── ParameterTypeHandler (type conversions)
+│
+└── ComfyUi.node.ts
+    ├── Auto-detect execution mode
+    ├── Route to tool/action logic
+    └── Return appropriate output
+```
+
+### 执行模式 | Execution Modes
+
+**Tool Mode** (AI Agent):
+- 返回图片 URL
+- 不支持 binary 输入
+- 检测来源: n8n context 或输入数据标记
+
+**Action Mode** (Standard Workflow):
+- 返回完整二进制数据
+- 支持 URL 和 binary 输入
+- 默认模式
+
+### 代码质量指标 | Code Quality Metrics
+
+| 指标 | 状态 |
+|------|------|
+| TypeScript 编译 | ✅ 通过 |
+| ESLint 检查 | ✅ 0 错误 0 警告 |
+| Non-null assertions | ✅ 0 处 |
+| 类型验证 | ✅ 完整 |
+| 模块化程度 | ✅ 高度模块化 |
+| ES6 imports | ✅ 100% |
+| 配置对象模式 | ✅ 采用 |
+
+### 代码统计 | Code Statistics
+
+```
+Language: TypeScript
+Total Lines: ~3000+
+Modules: 17
+Main Node: ComfyUi.node.ts
+Test Coverage: Included
+```
+
+### 最近改进 | Recent Enhancements (v2.4.15)
+
+**类型系统**:
+- ✅ 统一类型定义: 'workflow' → 'action'
+- ✅ BooleanString 类型明确 booleanValue
+- ✅ 完整的 TypeScript 类型定义
+
+**模式检测**:
+- ✅ n8n context 检查（主要方法）
+- ✅ 输入数据标记检查（备用方法）
+- ✅ 检测来源追踪 (context/input-data/default)
 
 **代码质量**:
-- 🎯 创建 ESLint v9 flat config
-- 🎯 修复所有 lint 警告
-- 🎯 移除 non-null assertions
-- 🎯 添加显式 null 检查
+- ✅ ESLint v9 flat config
+- ✅ 移除所有 non-null assertions
+- ✅ 添加显式 null 检查
+- ✅ 参数类型验证
 
-**架构改进**:
-- 📦 模块化参数处理器
-- 📦 独立的 ImageProcessor
-- 📦 独立的 ParameterTypeHandler
-- 📦 简化的 executionModeDetector
+**架构优化**:
+- ✅ 配置对象代替多参数
+- ✅ 模块化处理器分离
+- ✅ 统一 ES6 import
+- ✅ 错误处理增强
 
 ---
 
