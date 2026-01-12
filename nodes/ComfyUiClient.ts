@@ -912,6 +912,10 @@ export class ComfyUIClient {
     const bufferTracker = new BufferTracker(VALIDATION.MAX_TOTAL_IMAGE_MEMORY_MB * 1024 * 1024);
 
     try {
+      // Calculate total number of files
+      const totalFiles = (result.images?.length || 0) + (result.videos?.length || 0);
+      const useIndex = totalFiles > 1; // Use index only if multiple files
+
       let fileIndex = 0; // Unified index for all files (images + videos)
 
       // Fetch and process images in batches
@@ -931,7 +935,7 @@ export class ComfyUIClient {
           const fileInfo = extractImageFileInfo(imagePath, 'png');
           const mimeType = validateMimeType(fileInfo.mimeType, IMAGE_MIME_TYPES);
 
-          const binaryKey = `${outputBinaryKey}_${fileIndex++}`;
+          const binaryKey = useIndex ? `${outputBinaryKey}_${fileIndex++}` : outputBinaryKey;
           binaryData[binaryKey] = {
             data: imageBuffer.toString('base64'),
             mimeType: mimeType,
@@ -971,7 +975,7 @@ export class ComfyUIClient {
           const fileInfo = extractVideoFileInfo(videoPath, 'mp4');
           const mimeType = validateMimeType(fileInfo.mimeType, VIDEO_MIME_TYPES);
 
-          const binaryKey = `${outputBinaryKey}_${fileIndex++}`;
+          const binaryKey = useIndex ? `${outputBinaryKey}_${fileIndex++}` : outputBinaryKey;
           binaryData[binaryKey] = {
             data: videoBuffer.toString('base64'),
             mimeType: mimeType,
