@@ -82,7 +82,13 @@ export function updateNodeParameter(
   value: unknown
 ): Workflow {
   // Deep clone to avoid mutating original
-  const updatedWorkflow: Workflow = JSON.parse(JSON.stringify(workflow));
+  // Use structuredClone if available (Node.js 17+), fallback to JSON.parse/stringify
+  let updatedWorkflow: Workflow;
+  if (typeof structuredClone !== 'undefined') {
+    updatedWorkflow = structuredClone(workflow);
+  } else {
+    updatedWorkflow = JSON.parse(JSON.stringify(workflow));
+  }
 
   if (!updatedWorkflow[nodeId]) {
     throw new Error(`Node "${nodeId}" not found in workflow`);

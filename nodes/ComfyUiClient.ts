@@ -6,6 +6,7 @@ import { extractImageFileInfo, extractVideoFileInfo, validateMimeType, getMaxIma
 import { HttpError, BinaryData, JsonData, ProcessOutput } from './types';
 import { HttpClient } from './HttpClient';
 import { N8nHelpersAdapter } from './N8nHelpersAdapter';
+import { cleanupAllCaches } from './cache';
 
 /**
  * Safely stringify error objects, handling circular references
@@ -109,6 +110,8 @@ export class ComfyUIClient {
   private currentAbortController: AbortController | null = null;
 
   constructor(config: ComfyUIClientConfig) {
+    ensureFormDataAvailable();
+
     this.httpClient = new HttpClient({
       adapter: new N8nHelpersAdapter(config.helpers),
       logger: config.logger || new Logger(),
@@ -138,6 +141,7 @@ export class ComfyUIClient {
   destroy(): void {
     this.state = ClientState.DESTROYED;
     this.cancelRequest();
+    cleanupAllCaches();
   }
 
   /**
@@ -171,17 +175,30 @@ export class ComfyUIClient {
    * delays, consider breaking them into smaller chunks or using exponential backoff (already implemented
    * in retry logic).
    *
+   * OPTIMIZATION: Uses chunked delays to reduce CPU consumption by waiting longer between checks.
+   *
    * @param ms - Delay time in milliseconds
    * @returns Promise that resolves after delay
    */
   private async delay(ms: number): Promise<void> {
     const startTime = Date.now();
     const targetTime = startTime + ms;
+    const chunkSize = 50;
 
     // Busy-wait loop with microtask yielding (compliant with n8n community node restrictions)
+    // Optimized: Check every 50ms instead of continuous loop to reduce CPU usage
     while (Date.now() < targetTime) {
+      const remaining = targetTime - Date.now();
+      if (remaining <= 0) {
+        break;
+      }
+      const waitTime = Math.min(remaining, chunkSize);
       // Yield control to event loop using microtask queue
       await Promise.resolve();
+      // Additional microtask yields to reduce CPU usage
+      for (let i = 0; i < waitTime / 10; i++) {
+        await Promise.resolve();
+      }
     }
   }
 

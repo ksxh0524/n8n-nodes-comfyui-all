@@ -3,6 +3,7 @@
  */
 
 import { ParameterProcessor } from '../nodes/parameterProcessor';
+import { ParameterTypeHandler } from '../nodes/processors/ParameterTypeHandler';
 import { Workflow } from '../nodes/types';
 import { Logger } from '../nodes/logger';
 
@@ -25,6 +26,7 @@ const mockLogger = {
 
 describe('ParameterProcessor', () => {
   let processor: ParameterProcessor;
+  let typeHandler: ParameterTypeHandler;
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -32,44 +34,48 @@ describe('ParameterProcessor', () => {
       executeFunctions: mockExecuteFunctions,
       logger: mockLogger,
     });
-  });
-
-  describe('processTextParameter', () => {
-    it('should return the value as is', () => {
-      expect(processor.processTextParameter('test')).toBe('test');
-      expect(processor.processTextParameter('')).toBe('');
+    typeHandler = new ParameterTypeHandler({
+      executeFunctions: mockExecuteFunctions,
+      logger: mockLogger,
+      imageProcessor: null as any,
     });
   });
 
-  describe('processNumberParameter', () => {
+  describe('ParameterTypeHandler.processText', () => {
+    it('should return the value as is', () => {
+      expect(typeHandler.processText('test')).toBe('test');
+      expect(typeHandler.processText('')).toBe('');
+    });
+  });
+
+  describe('ParameterTypeHandler.processNumber', () => {
     it('should return number values', () => {
-      expect(processor.processNumberParameter(42)).toBe(42);
-      expect(processor.processNumberParameter(0)).toBe(0);
-      expect(processor.processNumberParameter(-10)).toBe(-10);
+      expect(typeHandler.processNumber(42)).toBe(42);
+      expect(typeHandler.processNumber(0)).toBe(0);
+      expect(typeHandler.processNumber(-10)).toBe(-10);
     });
 
     it('should return 0 for undefined', () => {
-      expect(processor.processNumberParameter(undefined as any)).toBe(0);
+      expect(typeHandler.processNumber(undefined as any)).toBe(0);
     });
   });
 
-  describe('processBooleanParameter', () => {
+  describe('ParameterTypeHandler.processBoolean', () => {
     it('should handle string boolean values', () => {
-      expect(processor.processBooleanParameter('true')).toBe(true);
-      expect(processor.processBooleanParameter('false')).toBe(false);
-      // Function is case-sensitive - only lowercase 'true' returns true
-      expect(processor.processBooleanParameter('TRUE')).toBe(false);
-      expect(processor.processBooleanParameter('FALSE')).toBe(false);
+      expect(typeHandler.processBoolean('true')).toBe(true);
+      expect(typeHandler.processBoolean('false')).toBe(false);
+      expect(typeHandler.processBoolean('TRUE')).toBe(false);
+      expect(typeHandler.processBoolean('FALSE')).toBe(false);
     });
 
     it('should handle actual boolean values', () => {
-      expect(processor.processBooleanParameter(true)).toBe(true);
-      expect(processor.processBooleanParameter(false)).toBe(false);
+      expect(typeHandler.processBoolean(true)).toBe(true);
+      expect(typeHandler.processBoolean(false)).toBe(false);
     });
 
     it('should return false for other values', () => {
-      expect(processor.processBooleanParameter('')).toBe(false);
-      expect(processor.processBooleanParameter('yes')).toBe(false);
+      expect(typeHandler.processBoolean('')).toBe(false);
+      expect(typeHandler.processBoolean('yes')).toBe(false);
     });
   });
 
@@ -109,12 +115,12 @@ describe('ParameterProcessor', () => {
         ],
       };
 
-      await processor.processNodeParameters(
-        nodeParameters as any,
-        mockWorkflow,
-        mockUploadImage,
-        30000
-      );
+      await processor.processNodeParameters({
+        nodeParametersInput: nodeParameters as any,
+        workflow: mockWorkflow,
+        uploadImage: mockUploadImage,
+        timeout: 30000,
+      });
 
       expect(mockWorkflow['6'].inputs.text).toBe('new text prompt');
     });
@@ -132,12 +138,12 @@ describe('ParameterProcessor', () => {
         ],
       };
 
-      await processor.processNodeParameters(
-        nodeParameters as any,
-        mockWorkflow,
-        mockUploadImage,
-        30000
-      );
+      await processor.processNodeParameters({
+        nodeParametersInput: nodeParameters as any,
+        workflow: mockWorkflow,
+        uploadImage: mockUploadImage,
+        timeout: 30000,
+      });
 
       expect(mockWorkflow['3'].inputs.seed).toBe(999888777);
     });
@@ -160,12 +166,12 @@ describe('ParameterProcessor', () => {
         ],
       };
 
-      await processor.processNodeParameters(
-        nodeParameters as any,
-        mockWorkflow,
-        mockUploadImage,
-        30000
-      );
+      await processor.processNodeParameters({
+        nodeParametersInput: nodeParameters as any,
+        workflow: mockWorkflow,
+        uploadImage: mockUploadImage,
+        timeout: 30000,
+      });
 
       expect(mockWorkflow['10'].inputs.enabled).toBe(true);
     });

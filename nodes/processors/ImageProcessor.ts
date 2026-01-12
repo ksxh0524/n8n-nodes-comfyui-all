@@ -105,20 +105,28 @@ export class ImageProcessor {
     const { binaryData, availableKeys } = this.findBinaryData(binaryPropertyName || 'data', index);
     this.validateBinaryData(binaryData, binaryPropertyName || 'data', index, availableKeys);
 
+    // After validation, binaryData is guaranteed to be non-null
+    if (!binaryData) {
+      throw new NodeOperationError(
+        this.executeFunctions.getNode(),
+        `Node Parameters ${index + 1}: Binary data validation failed.`
+      );
+    }
+
     this.logger.debug(`Found binary property "${binaryPropertyName || 'data'}" in input`);
 
-    const buffer = this.decodeBinaryData(binaryData!, index);
+    const buffer = this.decodeBinaryData(binaryData, index);
     this.validateDecodedBuffer(buffer, binaryPropertyName || 'data', index);
 
-    const filename = binaryData!.fileName || generateUniqueFilename(
-      binaryData!.mimeType?.split('/')[1] || 'png',
+    const filename = binaryData.fileName || generateUniqueFilename(
+      binaryData.mimeType?.split('/')[1] || 'png',
       'upload'
     );
 
     this.logger.info(`Uploading binary data to ComfyUI`, {
       filename,
       size: buffer.length,
-      mimeType: binaryData!.mimeType,
+      mimeType: binaryData.mimeType,
       paramName
     });
 
@@ -126,7 +134,7 @@ export class ImageProcessor {
 
     this.logger.info(`Successfully uploaded binary data`, { paramName, filename: uploadedFilename });
 
-    return { filename: uploadedFilename, size: buffer.length, mimeType: binaryData!.mimeType };
+    return { filename: uploadedFilename, size: buffer.length, mimeType: binaryData.mimeType };
   }
 
   /**
