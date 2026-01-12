@@ -1,4 +1,6 @@
 import { ValidationResult } from './types';
+import { SSRF_PATTERNS } from './constants';
+import { urlValidationCache } from './cache';
 
 const MAX_JSON_SIZE = 1 * 1024 * 1024;
 const MAX_JSON_DEPTH = 100;
@@ -110,13 +112,85 @@ export function safeJsonParse(jsonString: string, context: string = 'JSON'): unk
 }
 
 /**
- * Validate if a string is a valid HTTP/HTTPS URL
+ * Validate if a string is a valid HTTP/HTTPS URL for ComfyUI server
+ * This ALLOWS private network addresses (localhost, 127.0.0.1, 192.168.x.x, etc.)
+ * because ComfyUI is typically deployed locally or on private networks.
+ *
+ * Use this for validating user-configured ComfyUI server URLs.
+ *
+ * Caching: Uses in-memory cache to avoid repeated URL parsing and validation
  */
 export function validateUrl(url: string): boolean {
+  // Check cache first
+  const cached = urlValidationCache.get(url);
+  if (cached !== undefined) {
+    return cached;
+  }
+
   try {
     const parsed = new URL(url);
-    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+
+    // Only allow HTTP and HTTPS protocols
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      urlValidationCache.set(url, false);
+      return false;
+    }
+
+    // URL is valid (private addresses are allowed for ComfyUI server)
+    urlValidationCache.set(url, true);
+    return true;
   } catch {
+    urlValidationCache.set(url, false);
+    return false;
+  }
+}
+
+/**
+ * Validate if a string is a valid HTTP/HTTPS URL with SSRF protection
+ * This BLOCKS private network addresses to prevent Server-Side Request Forgery
+ *
+ * Use this for validating URLs from external sources (e.g., image URLs from user input).
+ *
+ * Caching: Uses in-memory cache to avoid repeated URL parsing and validation
+ */
+export function validateExternalUrl(url: string): boolean {
+  // Use a separate cache for external URLs
+  const cacheKey = `external:${url}`;
+  const cached = urlValidationCache.get(cacheKey);
+  if (cached !== undefined) {
+    return cached;
+  }
+
+  try {
+    const parsed = new URL(url);
+
+    // Only allow HTTP and HTTPS protocols
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      urlValidationCache.set(cacheKey, false);
+      return false;
+    }
+
+    const hostname = parsed.hostname.toLowerCase();
+
+    // Check for localhost aliases (BLOCK these)
+    if ((SSRF_PATTERNS.LOCALHOST_ALIASES as readonly string[]).includes(hostname)) {
+      urlValidationCache.set(cacheKey, false);
+      return false;
+    }
+
+    // Check for private IP patterns (BLOCK these)
+    for (const pattern of SSRF_PATTERNS.PRIVATE_IP_PATTERNS) {
+      if (pattern.test(hostname)) {
+        urlValidationCache.set(cacheKey, false);
+        return false;
+      }
+    }
+
+    // URL is valid and not a private address
+    urlValidationCache.set(cacheKey, true);
+    return true;
+  } catch {
+    urlValidationCache.set(cacheKey, false);
     return false;
   }
 }

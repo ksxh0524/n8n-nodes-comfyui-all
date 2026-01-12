@@ -1,174 +1,467 @@
-# Contributing to n8n-nodes-comfyui-all
+# 贡献指南 & 开发文档
 
-Thank you for your interest in contributing! We appreciate your help in improving this project.
+感谢您对本项目的关注！我们欢迎各种形式的贡献。
 
-## Table of Contents
+## 目录
 
-- [Code of Conduct](#code-of-conduct)
-- [Development Setup](#development-setup)
-- [Running Tests](#running-tests)
-- [Code Style](#code-style)
-- [Submitting Changes](#submitting-changes)
-- [Coding Standards](#coding-standards)
-- [Reporting Issues](#reporting-issues)
+- [开发环境设置](#开发环境设置)
+- [项目结构](#项目结构)
+- [构建命令](#构建命令)
+- [本地测试](#本地测试)
+- [本地部署](#本地部署)
+- [代码规范](#代码规范)
+- [提交更改](#提交更改)
+- [编码标准](#编码标准)
+- [安全考虑](#安全考虑)
+- [问题反馈](#问题反馈)
+- [发布到 npm](#发布到-npm)
 
-## Code of Conduct
+## 开发环境设置
 
-Please be respectful and constructive in all interactions. We aim to maintain a welcoming and inclusive community.
+### 前置要求
 
-## Development Setup
-
-### Prerequisites
-
-- Node.js 18.0.0 or higher
-- npm or yarn
+- Node.js 18.10+
+- npm 或 yarn
+- TypeScript 5.x
 - Git
 
-### 1. Fork the Repository
+### 1. Fork 仓库
 
-Click the "Fork" button in the top right corner of the repository page.
+点击仓库页面右上角的 "Fork" 按钮。
 
-### 2. Clone Your Fork
+### 2. 克隆您的 Fork
 
 ```bash
 git clone https://github.com/YOUR_USERNAME/n8n-nodes-comfyui-all.git
 cd n8n-nodes-comfyui-all
 ```
 
-### 3. Install Dependencies
+### 3. 安装依赖
 
 ```bash
 npm install
 ```
 
-### 4. Start Development
+### 4. 开始开发
 
 ```bash
 npm run dev
 ```
 
-This will start TypeScript in watch mode and automatically recompile on changes.
+这将启动 TypeScript 监视模式，自动重新编译更改。
 
-## Running Tests
+## 项目结构
 
-### Run All Tests
-
-```bash
-npm test
+```
+n8n-nodes-comfyui-all/
+├── nodes/
+│   ├── ComfyUi/
+│   │   ├── ComfyUi.node.ts     # 主节点实现
+│   │   └── comfyui.svg          # 节点图标
+│   ├── ComfyUiTool/
+│   │   ├── ComfyUiTool.node.ts # AI Agent 工具节点
+│   │   └── comfyuitool.svg
+│   ├── ComfyUiClient.ts         # ComfyUI API 客户端
+│   ├── constants.ts             # 配置常量
+│   ├── logger.ts                # 日志工具
+│   ├── types.ts                 # TypeScript 类型定义
+│   ├── validation.ts            # 输入验证
+│   ├── errors.ts                # 错误消息
+│   └── cache.ts                 # 缓存层
+├── dist/                        # 编译输出
+├── test/                        # 测试文件
+├── index.ts                     # 包入口
+├── package.json                 # 包配置
+├── tsconfig.json               # TypeScript 配置
+├── README.md                   # 用户文档
+└── CONTRIBUTING.md             # 本文档
 ```
 
-### Run Tests with Coverage
+## 构建命令
+
+### 编译 TypeScript
 
 ```bash
-npm run test:coverage
-```
-
-Coverage reports will be generated in the `coverage/` directory.
-
-### Run Linter
-
-```bash
-npm run lint
-```
-
-### Fix Linter Issues
-
-```bash
-npm run lintfix
-```
-
-## Code Style
-
-This project uses:
-
-- **TypeScript** for type safety and better developer experience
-- **ESLint** for code linting and maintaining code quality
-- **Prettier** for code formatting
-
-### Before Submitting a PR
-
-Please ensure your code passes all checks:
-
-```bash
-# Run linter
-npm run lint
-
-# Fix linting issues automatically
-npm run lintfix
-
-# Run tests
-npm test
-
-# Build the project
 npm run build
 ```
 
-## Submitting Changes
+### 监视模式（开发）
 
-### 1. Create a Branch
+```bash
+npm run dev
+```
 
-Create a new branch for your feature or bugfix:
+文件更改时自动重新编译。
+
+### 代码检查
+
+```bash
+# 检查代码风格
+npm run lint
+
+# 自动修复问题
+npm run lintfix
+
+# 格式化代码
+npm run format
+```
+
+### 运行测试
+
+```bash
+# 运行所有测试
+npm test
+
+# 运行测试并生成覆盖率报告
+npm run test:coverage
+```
+
+## 本地测试
+
+### 方法 1: 符号链接（推荐用于开发）
+
+```bash
+# 在 n8n 自定义目录中
+cd ~/.n8n/custom
+npm link /path/to/n8n-nodes-comfyui
+
+# 重启 n8n
+```
+
+### 方法 2: 本地包
+
+```bash
+# 构建包
+cd /path/to/n8n-nodes-comfyui
+npm run build
+npm pack
+
+# 安装到 n8n
+cd ~/.n8n/custom
+npm install /path/to/n8n-nodes-comfyui/n8n-nodes-comfyui-all-*.tgz
+
+# 重启 n8n
+```
+
+## 本地部署
+
+> **注意**: 本节适用于**自定义/本地开发部署**。生产环境请从 npm 安装：
+> ```bash
+> npm install n8n-nodes-comfyui-all
+> ```
+
+### 快速部署
+
+**一键部署（如果有脚本）**
+
+```bash
+cd /path/to/n8n-nodes-comfyui
+./redeploy.sh
+```
+
+该脚本会：
+1. 停止 n8n
+2. 清理旧文件
+3. 构建项目
+4. 打包节点
+5. 安装到 n8n
+6. 重启 n8n
+
+### 手动部署
+
+**步骤 1: 构建项目**
+
+```bash
+cd /path/to/n8n-nodes-comfyui
+npm install
+npm run build
+```
+
+**步骤 2: 打包节点**
+
+```bash
+npm pack
+# 创建: n8n-nodes-comfyui-all-2.0.0.tgz
+```
+
+**步骤 3: 安装到 n8n**
+
+```bash
+# 导航到 n8n 节点目录
+cd /path/to/n8n/.n8n/nodes
+
+# 安装打包的节点
+npm install /path/to/n8n-nodes-comfyui/n8n-nodes-comfyui-all-*.tgz
+```
+
+**步骤 4: 重启 n8n**
+
+```bash
+cd /path/to/n8n
+./stop-n8n.sh
+./start-n8n.sh
+```
+
+或使用 systemd：
+
+```bash
+sudo systemctl restart n8n
+```
+
+**步骤 5: 验证安装**
+
+1. 在浏览器中打开 n8n
+2. 按 `Ctrl+Shift+R` 硬刷新
+3. 添加新节点
+4. 搜索 "ComfyUI"
+5. 验证节点出现
+
+### 代码更改后重新部署
+
+**快速重新部署**
+
+```bash
+cd /path/to/n8n-nodes-comfyui
+./redeploy.sh
+```
+
+**手动重新部署**
+
+```bash
+# 1. 清理旧文件
+cd /path/to/n8n
+rm -rf .n8n/nodes/node_modules/n8n-nodes-comfyui-all
+
+# 2. 构建和打包
+cd /path/to/n8n-nodes-comfyui
+npm run build
+npm pack
+
+# 3. 重新安装
+cd /path/to/n8n/.n8n/nodes
+npm install /path/to/n8n-nodes-comfyui/n8n-nodes-comfyui-all-*.tgz
+
+# 4. 重启 n8n
+cd /path/to/n8n
+./stop-n8n.sh
+./start-n8n.sh
+```
+
+### 部署故障排除
+
+**节点不出现**
+
+**检查 1: 验证安装**
+```bash
+ls -la /path/to/n8n/.n8n/nodes/node_modules/ | grep comfyui
+```
+
+应该显示: `n8n-nodes-comfyui-all`
+
+**检查 2: 验证构建**
+```bash
+cd /path/to/n8n-nodes-comfyui
+ls -la dist/nodes/ComfyUi/
+```
+
+应该显示: `ComfyUi.node.js`
+
+**检查 3: 检查 n8n 日志**
+```bash
+tail -50 /path/to/n8n/n8n.log
+```
+
+查找加载节点的错误。
+
+**模块未找到错误**
+
+如果看到 `Cannot find module '../ComfyUiClient'`：
+
+这意味着您正在使用旧的安装方法。新方法使用 npm pack：
+
+```bash
+# 清理旧安装
+rm -rf /path/to/n8n/.n8n/custom/nodes/ComfyUi
+
+# 使用新的部署方法
+cd /path/to/n8n-nodes-comfyui
+./redeploy.sh
+```
+
+**重复节点**
+
+如果看到两个 ComfyUI 节点：
+
+```bash
+# 检查两个位置
+ls -la /path/to/n8n/.n8n/custom/nodes/ComfyUi
+ls -la /path/to/n8n/.n8n/nodes/node_modules/n8n-nodes-comfyui-all
+
+# 删除 custom 目录（旧方法）
+rm -rf /path/to/n8n/.n8n/custom/nodes/ComfyUi
+
+# 重启 n8n
+cd /path/to/n8n
+./stop-n8n.sh
+./start-n8n.sh
+```
+
+### 测试部署
+
+**1. 检查节点加载**
+
+```bash
+# 在 n8n UI 中，按 Ctrl+Shift+R
+# 添加节点 → 搜索 "ComfyUI"
+# 应该看到带图标的 "ComfyUI" 节点
+```
+
+**2. 测试基本功能**
+
+创建简单工作流：
+1. 添加 **ComfyUI** 节点
+2. 设置 **ComfyUI URL**: `http://127.0.0.1:8188`
+3. 粘贴测试工作流 JSON
+4. 执行工作流
+5. 验证工作正常
+
+**3. 检查日志**
+
+```bash
+tail -f /path/to/n8n/n8n.log
+```
+
+查找：
+- 节点成功加载
+- 启动时无错误
+- ComfyUI 连接工作
+
+## 代码规范
+
+本项目使用：
+
+- **TypeScript** 提供类型安全和更好的开发体验
+- **ESLint** 进行代码检查和维护代码质量
+- **Prettier** 进行代码格式化
+
+### 提交 PR 前
+
+请确保代码通过所有检查：
+
+```bash
+# 运行检查器
+npm run lint
+
+# 自动修复检查问题
+npm run lintfix
+
+# 运行测试
+npm test
+
+# 构建项目
+npm run build
+```
+
+### n8n 最佳实践
+
+1. **使用 n8n Helpers**
+   ```typescript
+   // ✅ 好 - 使用 n8n helpers
+   const response = await this.helpers.httpRequest({
+     method: 'GET',
+     url: 'http://comfyui:8188/system_stats',
+   });
+
+   // ❌ 差 - 直接使用 axios
+   const response = await axios.get('http://comfyui:8188/system_stats');
+   ```
+
+2. **适当的错误处理**
+   ```typescript
+   if (!workflow[nodeId]) {
+     throw new NodeOperationError(
+       this.getNode(),
+       `Node ID "${nodeId}" not found in workflow`
+     );
+   }
+   ```
+
+3. **类型安全**
+   ```typescript
+   // ✅ 好 - 显式类型
+   const nodeParameters: NodeParameterInput =
+     this.getNodeParameter('nodeParameters', 0);
+
+   // ❌ 差 - 隐式 any
+   const nodeParameters = this.getNodeParameter('nodeParameters', 0);
+   ```
+
+## 提交更改
+
+### 1. 创建分支
+
+为新功能或错误修复创建新分支：
 
 ```bash
 git checkout -b feature/your-feature-name
-# or
+# 或
 git checkout -b fix/your-bugfix-name
 ```
 
-### 2. Make Your Changes
+### 2. 进行更改
 
-- Write clear, concise code
-- Follow the existing code style
-- Add tests for new features
-- Update documentation as needed
+- 编写清晰简洁的代码
+- 遵循现有代码风格
+- 为新功能添加测试
+- 根据需要更新文档
 
-### 3. Commit Your Changes
+### 3. 提交更改
 
-Use clear commit messages:
+使用清晰的提交消息：
 
 ```bash
 git add .
-git commit -m "feat: add support for concurrent image fetching"
+git commit -m "feat: 添加并发图像获取支持"
 ```
 
-#### Commit Message Convention
+#### 提交消息约定
 
-We follow semantic commit messages:
+我们遵循语义化提交消息：
 
-- `feat:` - New feature
-- `fix:` - Bug fix
-- `docs:` - Documentation changes
-- `style:` - Code style changes (formatting, etc.)
-- `refactor:` - Code refactoring
-- `test:` - Adding or updating tests
-- `chore:` - Maintenance tasks
+- `feat:` - 新功能
+- `fix:` - 错误修复
+- `docs:` - 文档更改
+- `style:` - 代码风格更改（格式化等）
+- `refactor:` - 代码重构
+- `test:` - 添加或更新测试
+- `chore:` - 维护任务
 
-### 4. Push to Your Fork
+### 4. 推送到您的 Fork
 
 ```bash
 git push origin feature/your-feature-name
 ```
 
-### 5. Submit a Pull Request
+### 5. 提交 Pull Request
 
-1. Go to the original repository on GitHub
-2. Click "Pull Requests"
-3. Click "New Pull Request"
-4. Select your branch
-5. Fill out the PR template
-6. Submit the PR
+1. 转到 GitHub 上的原始仓库
+2. 点击 "Pull Requests"
+3. 点击 "New Pull Request"
+4. 选择您的分支
+5. 填写 PR 模板
+6. 提交 PR
 
-## Coding Standards
+## 编码标准
 
-### TypeScript Best Practices
+### TypeScript 最佳实践
 
-- **Always define types** - Avoid using `any`. Use proper TypeScript interfaces and types.
-- **Use `unknown` instead of `any`** - When you don't know the type, use `unknown` and validate.
-- **Enable strict mode** - The project uses TypeScript strict mode.
-- **Add JSDoc comments** - Document public APIs with JSDoc.
+- **始终定义类型** - 避免使用 `any`。使用适当的 TypeScript 接口和类型。
+- **使用 `unknown` 而不是 `any`** - 当您不知道类型时，使用 `unknown` 并验证。
+- **启用严格模式** - 项目使用 TypeScript 严格模式。
+- **添加 JSDoc 注释** - 使用 JSDoc 记录公共 API。
 
 ```typescript
-// ✅ Good
+// ✅ 好
 interface UserInput {
   name: string;
   email: string;
@@ -178,20 +471,20 @@ function processUser(input: UserInput): void {
   // ...
 }
 
-// ❌ Bad
+// ❌ 差
 function processUser(input: any): void {
   // ...
 }
 ```
 
-### Error Handling
+### 错误处理
 
-- Always handle errors appropriately
-- Use try-catch blocks for async operations
-- Provide meaningful error messages
+- 始终适当处理错误
+- 对异步操作使用 try-catch 块
+- 提供有意义的错误消息
 
 ```typescript
-// ✅ Good
+// ✅ 好
 async function fetchData(): Promise<Data> {
   try {
     const response = await apiCall();
@@ -201,92 +494,277 @@ async function fetchData(): Promise<Data> {
   }
 }
 
-// ❌ Bad
+// ❌ 差
 async function fetchData(): Promise<Data> {
-  return await apiCall(); // No error handling
+  return await apiCall(); // 无错误处理
 }
 ```
 
-### Naming Conventions
+### 命名约定
 
-- **Files**: Use kebab-case (`comfy-ui-client.ts`)
-- **Classes**: Use PascalCase (`ComfyUIClient`)
-- **Functions/Variables**: Use camelCase (`getImageBuffer`)
-- **Constants**: Use UPPER_SNAKE_CASE (`MAX_RETRIES`)
-- **Interfaces**: Use PascalCase (`WorkflowConfig`)
+- **文件**: 使用 kebab-case (`comfy-ui-client.ts`)
+- **类**: 使用 PascalCase (`ComfyUIClient`)
+- **函数/变量**: 使用 camelCase (`getImageBuffer`)
+- **常量**: 使用 UPPER_SNAKE_CASE (`MAX_RETRIES`)
+- **接口**: 使用 PascalCase (`WorkflowConfig`)
 
-### Code Organization
+### 代码组织
 
-- Keep functions small and focused
-- One file should contain one main class or export
-- Group related functionality together
-- Add comments for complex logic
+- 保持函数小而专注
+- 一个文件应包含一个主类或导出
+- 将相关功能分组在一起
+- 为复杂逻辑添加注释
 
-### Testing
+### 测试
 
-- Write unit tests for all new functionality
-- Aim for high test coverage (target: 70%+)
-- Test both success and error cases
-- Use descriptive test names
+- 为所有新功能编写单元测试
+- 目标是高测试覆盖率（目标：70%+）
+- 测试成功和错误情况
+- 使用描述性测试名称
 
 ```typescript
 describe('ComfyUIClient', () => {
   describe('executeWorkflow', () => {
     it('should execute workflow successfully', async () => {
-      // Test implementation
+      // 测试实现
     });
 
     it('should handle errors gracefully', async () => {
-      // Test implementation
+      // 测试实现
     });
   });
 });
 ```
 
-### Security Considerations
+## 安全考虑
 
-- **Validate all inputs** - Never trust user input
-- **Sanitize data** - Clean data before using it
-- **Handle buffer sizes** - Validate file sizes to prevent DoS
-- **Use HTTPS** - Always use secure connections
-- **Don't expose secrets** - Never commit credentials
+### SSRF 防护
 
-## Reporting Issues
+项目实现了两种 URL 验证策略，以平衡安全性和实际使用需求。
 
-### Bug Reports
+#### 1. `validateUrl()` - 用于 ComfyUI 服务器地址
 
-When reporting bugs, please include:
+**用途**: 验证用户配置的 ComfyUI 服务器 URL
 
-- Clear title and description
-- Steps to reproduce
-- Expected behavior
-- Actual behavior
-- Environment details (Node.js version, OS, etc.)
-- Screenshots if applicable
-- Stack traces or error messages
+**特点**: ✅ **允许私有地址**
+- 允许 `localhost`、`127.0.0.1`
+- 允许私有 IP 段：`10.x.x.x`、`172.16.x.x`、`192.168.x.x`
+- 仅验证 HTTP/HTTPS 协议
 
-### Feature Requests
+**使用场景**:
+```typescript
+// ✅ 允许 - ComfyUI 通常部署在本地
+validateUrl('http://localhost:8188')
+validateUrl('http://127.0.0.1:8188')
+validateUrl('http://192.168.1.100:8188')
+validateUrl('https://comfyui.example.com')
 
-When requesting features, please include:
+// ❌ 拒绝 - 不安全的协议
+validateUrl('ftp://example.com')
+validateUrl('javascript:alert(1)')
+```
 
-- Clear description of the feature
-- Use case or problem it solves
-- Possible implementation ideas
-- Examples if applicable
+#### 2. `validateExternalUrl()` - 用于外部资源 URL
 
-## Getting Help
+**用途**: 验证从外部获取的 URL（如用户输入的图像 URL）
 
-If you need help:
+**特点**: 🛡️ **阻止私有地址（SSRF 防护）**
+- 阻止 `localhost`、`127.0.0.1`
+- 阻止所有私有 IP 段
+- 仅允许公网地址
 
-- Check existing issues and discussions
-- Read the documentation
-- Ask questions in GitHub Discussions
-- Join our community chat (if available)
+**使用场景**:
+```typescript
+// ✅ 允许 - 公网地址
+validateExternalUrl('https://example.com/image.png')
+validateExternalUrl('http://api.example.com/resource')
 
-## License
+// ❌ 拒绝 - 私有地址（SSRF 防护）
+validateExternalUrl('http://localhost:8188')
+validateExternalUrl('http://127.0.0.1:8188')
+validateExternalUrl('http://192.168.1.1/image.png')
+validateExternalUrl('http://10.0.0.1/resource')
+```
 
-By contributing, you agree that your contributions will be licensed under the MIT License.
+### 为什么需要两种策略？
+
+**使用场景差异**
+
+| 场景 | 来源 | 信任度 | 策略 |
+|------|------|--------|------|
+| **ComfyUI 服务器** | 用户手动配置 | 高 | 允许私有地址 |
+| **外部资源 URL** | 用户输入/外部数据 | 低 | 阻止私有地址 |
+
+**安全考虑**
+
+1. **ComfyUI 服务器 URL**
+   - 由用户在 n8n 节点配置中手动输入
+   - 用户有完全控制权
+   - 通常部署在本地或私有网络
+   - ✅ **无需 SSRF 限制**
+
+2. **外部资源 URL**
+   - 可能来自工作流输入或外部数据
+   - 存在 SSRF 攻击风险
+   - 攻击者可能尝试扫描内网
+   - 🛡️ **需要 SSRF 防护**
+
+### 其他安全注意事项
+
+- **验证所有输入** - 永远不要信任用户输入
+- **清理数据** - 在使用前清理数据
+- **处理缓冲区大小** - 验证文件大小以防止 DoS
+- **使用 HTTPS** - 始终使用安全连接
+- **不要暴露密钥** - 永远不要提交凭据
+
+## 添加新功能
+
+### 1. 添加新参数类型
+
+编辑 `ComfyUi.node.ts`:
+
+```typescript
+{
+  displayName: 'Type',
+  name: 'type',
+  type: 'options',
+  options: [
+    { name: 'Text', value: 'text' },
+    { name: 'Number', value: 'number' },
+    { name: 'Boolean', value: 'boolean' },
+    { name: 'Binary', value: 'binary' },
+    // 在此添加新类型
+  ],
+}
+```
+
+更新 `types.ts`:
+
+```typescript
+export interface NodeParameterConfig {
+  type?: 'text' | 'number' | 'boolean' | 'binary' | 'new-type';
+}
+```
+
+在 execute() 中处理:
+
+```typescript
+case 'new-type':
+  // 处理新参数类型
+  parsedValue = processNewType(value);
+  workflow[nodeId].inputs[paramName] = parsedValue;
+  break;
+```
+
+### 2. 扩展客户端功能
+
+编辑 `ComfyUiClient.ts`:
+
+```typescript
+async newFeature(params: any): Promise<Result> {
+  const response = await this.helpers.httpRequest({
+    method: 'POST',
+    url: `${this.baseUrl}/new-endpoint`,
+    json: true,
+    body: params,
+    timeout: this.timeout,
+  });
+
+  return processResponse(response);
+}
+```
+
+## 调试
+
+### 启用调试日志
+
+```typescript
+import { createLogger } from '../logger';
+
+const logger = createLogger('ComfyUi');
+
+// 在您的代码中
+logger.debug('Debug message', { data: value });
+logger.info('Info message');
+logger.error('Error message', error);
+```
+
+### 检查节点输出
+
+```bash
+# 查看 n8n 日志
+tail -f ~/.n8n/logs/n8n.log
+
+# 或您的自定义 n8n 日志位置
+tail -f /path/to/n8n/n8n.log
+```
+
+## 问题反馈
+
+### 错误报告
+
+报告错误时，请包括：
+
+- 清晰的标题和描述
+- 复现步骤
+- 预期行为
+- 实际行为
+- 环境详情（Node.js 版本、操作系统等）
+- 适用时的屏幕截图
+- 堆栈跟踪或错误消息
+
+### 功能请求
+
+请求功能时，请包括：
+
+- 功能的清晰描述
+- 用例或解决的问题
+- 可能的实现想法
+- 适用时的示例
+
+## 获取帮助
+
+如果您需要帮助：
+
+- 检查现有的问题和讨论
+- 阅读文档
+- 在 GitHub Discussions 中提问
+- 加入我们的社区聊天（如果有）
+
+## 发布到 npm
+
+### 前置条件
+
+1. **npm 账户** - 在 https://www.npmjs.com/signup 创建
+2. **启用 2FA** - 发布所需
+3. **干净构建** - `npm run build` 和 `npm run lint` 必须通过
+
+### 发布步骤
+
+```bash
+# 1. 更新 package.json 中的版本
+npm version patch  # 或 minor, major
+
+# 2. 构建
+npm run build
+
+# 3. 检查代码质量
+npm run lint
+
+# 4. 发布
+npm publish --access public
+```
+
+### 版本指南
+
+- **Major** (1.0.0 → 2.0.0): 破坏性更改
+- **Minor** (1.0.0 → 1.1.0): 新功能，向后兼容
+- **Patch** (1.0.0 → 1.0.1): 错误修复
+
+## 许可证
+
+通过贡献，您同意您的贡献将在 MIT 许可证下获得许可。
 
 ---
 
-Thank you for your contributions! 🎉
+感谢您的贡献！🎉

@@ -43,7 +43,7 @@ export class ComfyUi {
 
     const hasAiPrompt = aiPrompt && aiPrompt.trim().length > 0;
     details['aiPrompt'] = {
-      detected: !!hasAiPrompt,
+      detected: hasAiPrompt,
       score: hasAiPrompt ? 3 : 0,
       description: hasAiPrompt ? 'AI Prompt 参数有值' : 'AI Prompt 参数为空',
     };
@@ -53,7 +53,7 @@ export class ComfyUi {
                        inputData[0].binary &&
                        Object.keys(inputData[0].binary).length > 0;
     details['binaryData'] = {
-      detected: !!hasBinaryData,
+      detected: hasBinaryData,
       score: hasBinaryData ? 0 : 3,
       description: hasBinaryData ? '输入包含二进制数据' : '输入不包含二进制数据',
     };
@@ -514,7 +514,7 @@ export class ComfyUi {
    * @returns Promise containing the execution results with image/video data
    * @throws {NodeOperationError} If URL validation, workflow validation, or execution fails
    */
-  async execute(this: IExecuteFunctions & ComfyUi): Promise<INodeExecutionData[][]> {
+  async execute(this: IExecuteFunctions): Promise<INodeExecutionData[][]> {
     const logger = createLogger(this.logger);
     const comfyUiUrl = this.getNodeParameter('comfyUiUrl', 0) as string;
     const workflowJson = this.getNodeParameter('workflowJson', 0) as string;
@@ -524,12 +524,12 @@ export class ComfyUi {
     const aiPrompt = this.getNodeParameter('aiPrompt', 0) as string;
 
     if (!validateUrl(comfyUiUrl)) {
-      throw new NodeOperationError(this.getNode(), 'ComfyUI URL 格式无效。必须是有效的 HTTP/HTTPS URL。\n提示：支持本地部署地址（如 http://localhost:8188、http://127.0.0.1:8188、http://192.168.x.x:8188 等）。');
+      throw new NodeOperationError(this.getNode(), 'Invalid ComfyUI URL. Must be a valid HTTP/HTTPS URL.');
     }
 
     const workflowValidation = validateComfyUIWorkflow(workflowJson);
     if (!workflowValidation.valid) {
-      throw new NodeOperationError(this.getNode(), `ComfyUI 工作流无效：${workflowValidation.error}。请确保从 ComfyUI 导出 API 格式的工作流。`);
+      throw new NodeOperationError(this.getNode(), `Invalid ComfyUI workflow: ${workflowValidation.error}. Please ensure you export your workflow in API format from ComfyUI.`);
     }
 
     let workflow: Workflow;
@@ -537,7 +537,7 @@ export class ComfyUi {
       workflow = safeJsonParse(workflowJson, 'Workflow JSON') as Workflow;
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);
-      throw new NodeOperationError(this.getNode(), `解析工作流 JSON 失败：${errorMsg}。请确保 JSON 格式正确。`);
+      throw new NodeOperationError(this.getNode(), `Failed to parse workflow JSON: ${errorMsg}. Please ensure the JSON is valid.`);
     }
 
     const inputData = this.getInputData();
@@ -561,7 +561,7 @@ export class ComfyUi {
         total: detection.scores.tool + detection.scores.workflow,
       });
       logger.info('🔍 各维度详情');
-      for (const [key, detail] of Object.entries(detection.details) as [string, DetectionResult['details'][string]][]) {
+      for (const [key, detail] of Object.entries(detection.details)) {
         const icon = detail.detected ? '✅' : '❌';
         logger.info(`  ${icon} ${key}:`, {
           detected: detail.detected,
@@ -584,47 +584,23 @@ export class ComfyUi {
     }
 
     if (isToolMode && aiPrompt) {
-      // 智能选择 CLIPTextEncode 节点来更新提示词
-      // 优先级：节点 ID 小的 > 非 negative 的 > 有 text 输入的
-      const textNodeCandidates = Object.entries(workflow)
-        .filter(([, node]) => {
-          if (node.class_type !== 'CLIPTextEncode') return false;
-          if (!node.inputs || typeof node.inputs.text !== 'string') return false;
+      const textNodeIds = Object.keys(workflow).filter(nodeId => {
+        const node = workflow[nodeId];
+        return node.class_type === 'CLIPTextEncode' &&
+               node.inputs &&
+               typeof node.inputs.text === 'string' &&
+               !node.inputs.text.toLowerCase().includes('negative');
+      });
 
-          const text = node.inputs.text.toLowerCase();
-
-          // 更明确的 negative 检测（避免误判 "myNegativePrompt" 等）
-          const isNegative =
-            text.startsWith('negative') ||
-            text.includes('[negative]') ||
-            text.includes('[NEGATIVE]');
-
-          return !isNegative;
-        })
-        .sort(([idA], [idB]) => {
-          // 优先选择节点 ID 较小的（通常在前面，更可能是主提示词）
-          const numIdA = parseInt(idA) || 999999;
-          const numIdB = parseInt(idB) || 999999;
-          return numIdA - numIdB;
-        });
-
-      if (textNodeCandidates.length > 0) {
-        const [nodeId, node] = textNodeCandidates[0];
-        const previousText = node.inputs.text;
-
-        // 更新提示词
+      if (textNodeIds.length > 0) {
+        const nodeId = textNodeIds[0];
         workflow[nodeId].inputs.text = aiPrompt;
-
-        logger.info(`Tool 模式：更新提示词到节点 ${nodeId}`, {
-          prompt: aiPrompt,
-          previousText,
-          nodeId,
-        });
+        logger.info(`Tool 模式：更新提示词到节点 ${nodeId}`, { prompt: aiPrompt });
       } else {
-        logger.warn('Tool 模式：未找到合适的 CLIPTextEncode 节点来更新提示词', {
-          prompt: aiPrompt,
-          availableNodes: Object.keys(workflow).filter(id => workflow[id].class_type === 'CLIPTextEncode'),
-        });
+        if (workflow['6'] && workflow['6'].inputs) {
+          workflow['6'].inputs.text = aiPrompt;
+          logger.info(`Tool 模式：更新提示词到节点 6`, { prompt: aiPrompt });
+        }
       }
     }
 
@@ -635,7 +611,7 @@ export class ComfyUi {
       logger: logger,
     });
 
-    logger.info('开始执行 ComfyUI 工作流', {
+    logger.info('Starting ComfyUI workflow execution', {
       url: comfyUiUrl,
       timeout,
       executionMode: isToolMode ? 'Tool' : 'Action',
@@ -657,17 +633,17 @@ export class ComfyUi {
         timeout
       );
 
-      logger.info('准备执行工作流', {
+      logger.info('Prepared workflow for execution', {
         nodeCount: Object.keys(workflow).length,
         comfyUiUrl,
         workflow: JSON.stringify(workflow, null, 2),
       });
 
-      logger.info('正在执行 ComfyUI 工作流', { nodeCount: Object.keys(workflow).length, comfyUiUrl });
+      logger.info('Executing ComfyUI workflow', { nodeCount: Object.keys(workflow).length, comfyUiUrl });
       const result = await client.executeWorkflow(workflow);
 
       if (!result.success) {
-        logger.error('工作流执行失败', result.error);
+        logger.error('Workflow execution failed', result.error);
         throw new NodeOperationError(this.getNode(), `Failed to execute workflow: ${result.error}`);
       }
 
@@ -693,7 +669,7 @@ export class ComfyUi {
         };
       }
 
-      logger.info('工作流执行成功', {
+      logger.info('Workflow execution completed successfully', {
         imageCount: outputData.json.imageCount || 0,
         videoCount: outputData.json.videoCount || 0,
       });
@@ -703,11 +679,11 @@ export class ComfyUi {
         { itemData: { item: 0 } }
       )];
     } catch (error) {
-      logger.error('工作流执行期间出错', error);
+      logger.error('Error during workflow execution', error);
       throw error;
     } finally {
       client.destroy();
-      logger.debug('客户端已销毁');
+      logger.debug('Client destroyed');
     }
   }
 }

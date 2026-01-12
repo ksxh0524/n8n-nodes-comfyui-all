@@ -53,6 +53,30 @@ export const VALIDATION = {
   MAX_TOTAL_ERRORS: 10,
   MAX_BACKOFF_DELAY_POLLING: 10000,
   MAX_BACKOFF_DELAY_RETRY: 5000,
+  // Batch processing limits to prevent memory overflow
+  CONCURRENT_DOWNLOAD_BATCH_SIZE: 3, // Download 3 images/videos at a time
+  MAX_TOTAL_IMAGE_MEMORY_MB: 200, // Maximum total memory for all images (200MB)
+} as const;
+
+// SSRF protection patterns
+export const SSRF_PATTERNS = {
+  // Private IP ranges
+  PRIVATE_IP_PATTERNS: [
+    /^127\./, // Loopback
+    /^10\./, // 10.0.0.0/8
+    /^172\.(1[6-9]|2[0-9]|3[01])\./, // 172.16.0.0/12
+    /^192\.168\./, // 192.168.0.0/16
+    /^0\./, // 0.0.0.0/8
+    /^169\.254\./, // 169.254.0.0/16 (link-local)
+    /^100\.(6[4-9]|[7-9][0-9]|1[0-1][0-9]|12[0-7])\./, // 100.64.0.0/10 (carrier-grade NAT)
+    /^192\.0\.0\./, // 192.0.0.0/24 (IETF protocol assignments)
+    /^192\.0\.2\./, // 192.0.2.0/24 (TEST-NET-1)
+    /^198\.18\./, // 198.18.0.0/15 (benchmarking)
+    /^198\.51\.100\./, // 198.51.100.0/24 (TEST-NET-2)
+    /^203\.0\.113\./, // 203.0.113.0/24 (TEST-NET-3)
+    /^(::1|fe80::|fc00::)/, // IPv6 loopback, link-local, unique local
+  ],
+  LOCALHOST_ALIASES: ['localhost', 'localhost.localdomain', 'ip6-localhost', 'ip6-loopback'],
 } as const;
 
 // Default values

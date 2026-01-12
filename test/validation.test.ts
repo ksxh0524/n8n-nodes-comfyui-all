@@ -4,22 +4,32 @@
 
 import {
   validateUrl,
+  validateExternalUrl,
   validateComfyUIWorkflow,
   safeJsonParse,
   validateOutputBinaryKey,
 } from '../nodes/validation';
 
 describe('Validation Utilities', () => {
-  describe('validateUrl', () => {
-    it('should accept valid HTTP URLs', () => {
+  describe('validateUrl (for ComfyUI server)', () => {
+    it('should accept valid HTTP URLs including private addresses', () => {
       expect(validateUrl('http://example.com')).toBe(true);
-      expect(validateUrl('http://127.0.0.1:8188')).toBe(true);
+      expect(validateUrl('http://api.example.com:8188')).toBe(true);
+      // Should allow localhost (ComfyUI typically runs locally)
       expect(validateUrl('http://localhost:3000')).toBe(true);
+      expect(validateUrl('http://127.0.0.1:8188')).toBe(true);
+      expect(validateUrl('http://127.1.1.1')).toBe(true);
+      // Should allow private IP ranges (common for local deployment)
+      expect(validateUrl('http://10.0.0.1')).toBe(true);
+      expect(validateUrl('http://192.168.1.1')).toBe(true);
+      expect(validateUrl('http://172.16.0.1')).toBe(true);
     });
 
     it('should accept valid HTTPS URLs', () => {
       expect(validateUrl('https://example.com')).toBe(true);
       expect(validateUrl('https://api.example.com/v1')).toBe(true);
+      // Should allow localhost with HTTPS
+      expect(validateUrl('https://localhost:8188')).toBe(true);
     });
 
     it('should reject invalid URLs', () => {
@@ -27,6 +37,37 @@ describe('Validation Utilities', () => {
       expect(validateUrl('not-a-url')).toBe(false);
       expect(validateUrl('')).toBe(false);
       expect(validateUrl('javascript:alert(1)')).toBe(false);
+    });
+  });
+
+  describe('validateExternalUrl (with SSRF protection)', () => {
+    it('should accept valid public HTTP URLs', () => {
+      expect(validateExternalUrl('http://example.com')).toBe(true);
+      expect(validateExternalUrl('http://api.example.com:8188')).toBe(true);
+    });
+
+    it('should accept valid HTTPS URLs', () => {
+      expect(validateExternalUrl('https://example.com')).toBe(true);
+      expect(validateExternalUrl('https://api.example.com/v1')).toBe(true);
+    });
+
+    it('should reject SSRF-prone URLs (localhost and private IPs)', () => {
+      // Reject localhost
+      expect(validateExternalUrl('http://localhost:3000')).toBe(false);
+      expect(validateExternalUrl('http://127.0.0.1:8188')).toBe(false);
+      expect(validateExternalUrl('http://127.1.1.1')).toBe(false);
+
+      // Reject private IP ranges
+      expect(validateExternalUrl('http://10.0.0.1')).toBe(false);
+      expect(validateExternalUrl('http://192.168.1.1')).toBe(false);
+      expect(validateExternalUrl('http://172.16.0.1')).toBe(false);
+    });
+
+    it('should reject invalid URL protocols', () => {
+      expect(validateExternalUrl('ftp://example.com')).toBe(false);
+      expect(validateExternalUrl('not-a-url')).toBe(false);
+      expect(validateExternalUrl('')).toBe(false);
+      expect(validateExternalUrl('javascript:alert(1)')).toBe(false);
     });
   });
 

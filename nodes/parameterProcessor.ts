@@ -80,11 +80,12 @@ export class ParameterProcessor {
       );
     }
 
-    const { validateUrl } = await import('./validation');
-    if (!validateUrl(imageUrl)) {
+    const { validateExternalUrl } = await import('./validation');
+    if (!validateExternalUrl(imageUrl)) {
       throw new NodeOperationError(
         this.executeFunctions.getNode(),
-        `Node Parameters ${index + 1}: Invalid image URL "${imageUrl}". Must be a valid HTTP/HTTPS URL.`
+        `Node Parameters ${index + 1}: Invalid image URL "${imageUrl}". ` +
+        `Must be a valid HTTP/HTTPS URL and cannot be a private network address (localhost, 127.0.0.1, 192.168.x.x, etc.).`
       );
     }
 

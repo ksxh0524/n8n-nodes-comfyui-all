@@ -1,5 +1,55 @@
 import { NodeOperationError, IExecuteFunctions } from 'n8n-workflow';
 
+/**
+ * Error messages with both English and Chinese translations
+ */
+const ERROR_MESSAGES = {
+  CONNECTION_REFUSED: {
+    en: 'Failed to connect to ComfyUI server. Please check if the server is running and accessible.',
+    zh: '无法连接到 ComfyUI 服务器。请检查服务器是否正在运行且可访问。',
+  },
+  TIMEOUT: {
+    en: 'Connection timeout while connecting to ComfyUI server.',
+    zh: '连接 ComfyUI 服务器超时。',
+  },
+  FORBIDDEN: {
+    en: 'The server returned 403 Forbidden. The URL may require authentication or block automated access.',
+    zh: '服务器返回 403 Forbidden。该 URL 可能需要身份验证或阻止自动访问。',
+  },
+  NOT_FOUND: {
+    en: 'The server returned 404 Not Found. The URL may be incorrect or the resource may have been removed.',
+    zh: '服务器返回 404 Not Found。URL 可能不正确或资源已被移除。',
+  },
+  BAD_REQUEST: {
+    en: 'The server returned 400 Bad Request. The request may be malformed.',
+    zh: '服务器返回 400 Bad Request。请求格式可能不正确。',
+  },
+  INTERNAL_ERROR: {
+    en: 'The server returned 500 Internal Server Error. Please try again later.',
+    zh: '服务器返回 500 Internal Server Error。请稍后重试。',
+  },
+  SERVICE_UNAVAILABLE: {
+    en: 'The server returned 503 Service Unavailable. The server may be overloaded.',
+    zh: '服务器返回 503 Service Unavailable。服务器可能过载。',
+  },
+  SSRF_BLOCKED: {
+    en: 'The URL was blocked for security reasons. Access to internal network addresses is not allowed.',
+    zh: '该 URL 因安全原因被阻止。不允许访问内网地址。',
+  },
+  INVALID_URL: {
+    en: 'Invalid URL format. Must be a valid HTTP/HTTPS URL.',
+    zh: 'URL 格式无效。必须是有效的 HTTP/HTTPS URL。',
+  },
+  MEMORY_LIMIT: {
+    en: 'Approaching memory limit. Consider processing fewer items at once.',
+    zh: '接近内存限制。请考虑一次处理较少的项目。',
+  },
+  INVALID_WORKFLOW: {
+    en: 'Invalid ComfyUI workflow format. Please export in API format from ComfyUI.',
+    zh: 'ComfyUI 工作流格式无效。请从 ComfyUI 导出 API 格式。',
+  },
+};
+
 export class ComfyUIError extends Error {
   public readonly code: string;
   public readonly statusCode?: number;
@@ -77,20 +127,21 @@ export function createErrorFromHttpError(
     message = `${defaultMessage}: ${errorCode}`;
   }
 
+  // Use friendly error messages (Chinese with English fallback)
   if (errorCode === 'ECONNREFUSED') {
-    return new ComfyUIConnectionError('Failed to connect to ComfyUI server. Please check if the server is running.', details);
+    return new ComfyUIConnectionError(ERROR_MESSAGES.CONNECTION_REFUSED.zh, details);
   } else if (errorCode === 'ETIMEDOUT' || errorCode === 'ECONNABORTED') {
-    return new ComfyUITimeoutError('Connection timeout while connecting to ComfyUI server.', details);
+    return new ComfyUITimeoutError(ERROR_MESSAGES.TIMEOUT.zh, details);
   } else if (statusCode === 403) {
-    return new ComfyUIConnectionError('The server returned 403 Forbidden. The URL may require authentication or block automated access.', details);
+    return new ComfyUIConnectionError(ERROR_MESSAGES.FORBIDDEN.zh, details);
   } else if (statusCode === 404) {
-    return new ComfyUIConnectionError('The server returned 404 Not Found. The URL may be incorrect or the resource may have been removed.', details);
+    return new ComfyUIConnectionError(ERROR_MESSAGES.NOT_FOUND.zh, details);
   } else if (statusCode === 400) {
-    return new ComfyUIValidationError('The server returned 400 Bad Request. The request may be malformed.', details);
+    return new ComfyUIValidationError(ERROR_MESSAGES.BAD_REQUEST.zh, details);
   } else if (statusCode === 500) {
-    return new ComfyUIExecutionError('The server returned 500 Internal Server Error. Please try again later.', details);
+    return new ComfyUIExecutionError(ERROR_MESSAGES.INTERNAL_ERROR.zh, details);
   } else if (statusCode === 503) {
-    return new ComfyUIExecutionError('The server returned 503 Service Unavailable. The server may be overloaded.', details);
+    return new ComfyUIExecutionError(ERROR_MESSAGES.SERVICE_UNAVAILABLE.zh, details);
   }
 
   return new ComfyUIError(message, 'HTTP_ERROR', statusCode, details);
