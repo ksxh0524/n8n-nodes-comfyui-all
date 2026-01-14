@@ -498,8 +498,30 @@ export class ComfyUi {
       const result = await client.executeWorkflow(workflow);
 
       if (!result.success) {
-        logger.error('工作流执行失败', result.error);
-        throw new NodeOperationError(this.getNode(), `Failed to execute workflow: ${result.error}`);
+        logger.error('工作流执行失败', {
+          error: result.error,
+          errorDetails: result.errorDetails,
+          nodeErrors: result.nodeErrors,
+        });
+
+        // Construct detailed error message
+        let errorMessage = `ComfyUI 工作流执行失败：${result.error}`;
+
+        // Add node error details if available
+        if (result.nodeErrors) {
+          const nodeErrorMessages: string[] = [];
+          for (const [nodeId, nodeError] of Object.entries(result.nodeErrors)) {
+            if (nodeError.errors && nodeError.errors.length > 0) {
+              const firstError = nodeError.errors[0];
+              nodeErrorMessages.push(`节点 ${nodeId}：${firstError.message}${firstError.details ? ` (${firstError.details})` : ''}`);
+            }
+          }
+          if (nodeErrorMessages.length > 0) {
+            errorMessage += `\n\n详细信息：\n${nodeErrorMessages.join('\n')}`;
+          }
+        }
+
+        throw new NodeOperationError(this.getNode(), errorMessage);
       }
 
       let outputData: INodeExecutionData;

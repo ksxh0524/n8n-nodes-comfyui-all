@@ -52,12 +52,24 @@ export interface PromptResponse {
   prompt_id: string;
 }
 
+/**
+ * ComfyUI node error details
+ */
+export interface ComfyUINodeError {
+  type: string;
+  message: string;
+  details?: string;
+  exception_type?: string;
+}
+
 export interface HistoryResponse {
   [key: string]: {
     outputs?: unknown;
     status?: {
       completed: boolean;
+      status_str?: string;
     };
+    node_errors?: Record<string, { errors: ComfyUINodeError[] }>;
   };
 }
 

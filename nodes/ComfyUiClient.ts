@@ -175,6 +175,8 @@ export interface WorkflowResult {
   videos?: string[];
   output?: Record<string, unknown>;
   error?: string;
+  errorDetails?: Record<string, unknown>;
+  nodeErrors?: Record<string, { errors: { type: string; message: string; details?: string }[] }>;
 }
 
 export class ComfyUIClient {
@@ -472,15 +474,27 @@ export class ComfyUIClient {
         });
 
         if (response[promptId]) {
-          const promptData = response[promptId] as { status: { completed: boolean; status_str: string }; outputs?: unknown };
+          const promptData = response[promptId] as {
+            status: { completed: boolean; status_str?: string };
+            outputs?: unknown;
+            node_errors?: Record<string, { errors: { type: string; message: string; details?: string }[] }>;
+          };
           const status = promptData.status;
 
           if (status.completed) {
+            // Check for execution errors before extracting results
+            const errorResult = this.extractExecutionErrors(promptData);
+            if (errorResult) {
+              return errorResult;
+            }
+
+            // No errors, proceed to extract results
             return this.extractResults(promptData.outputs);
           }
 
-          if (lastStatus !== status.status_str) {
+          if (status.status_str && lastStatus !== status.status_str) {
             lastStatus = status.status_str;
+            this.logger.debug(`Execution status: ${status.status_str}`);
           }
         }
 
@@ -541,6 +555,80 @@ export class ComfyUIClient {
       success: false,
       error: 'Workflow execution timeout',
     };
+  }
+
+  /**
+   * Extract error information from ComfyUI execution response
+   * @param promptData - Prompt data from ComfyUI history API
+   * @returns WorkflowResult with error details
+   */
+  private extractExecutionErrors(
+    promptData: {
+      status: { completed: boolean; status_str?: string };
+      outputs?: unknown;
+      node_errors?: Record<string, { errors: { type: string; message: string; details?: string }[] }>;
+    }
+  ): WorkflowResult | null {
+    const { status, node_errors } = promptData;
+
+    // Check if status_str indicates an error
+    if (status.status_str === 'error') {
+      this.logger.error('ComfyUI execution failed with status: error');
+    }
+
+    // Check for node errors
+    if (node_errors && Object.keys(node_errors).length > 0) {
+      this.logger.error('ComfyUI execution failed with node errors');
+
+      // Extract and format error messages
+      const errorMessages: string[] = [];
+      const errorDetails: Record<string, { message: string; type: string; details?: string }> = {};
+
+      for (const [nodeId, nodeError] of Object.entries(node_errors)) {
+        if (nodeError.errors && nodeError.errors.length > 0) {
+          const firstError = nodeError.errors[0];
+
+          // Format error message
+          let errorMsg = firstError.message;
+          if (firstError.details) {
+            errorMsg += ` (${firstError.details})`;
+          }
+
+          errorMessages.push(`Node ${nodeId}: ${errorMsg}`);
+
+          // Store error details
+          errorDetails[nodeId] = {
+            message: firstError.message,
+            type: firstError.type,
+            details: firstError.details,
+          };
+
+          this.logger.error(`Node ${nodeId} error:`, {
+            type: firstError.type,
+            message: firstError.message,
+            details: firstError.details,
+          });
+        }
+      }
+
+      return {
+        success: false,
+        error: `ComfyUI workflow execution failed: ${errorMessages.join('; ')}`,
+        errorDetails: { nodeErrors: errorDetails },
+        nodeErrors: node_errors,
+      };
+    }
+
+    // If status is error but no node errors, provide a generic error
+    if (status.status_str === 'error') {
+      return {
+        success: false,
+        error: 'ComfyUI workflow execution failed but no specific error details were returned',
+        errorDetails: { status: status.status_str },
+      };
+    }
+
+    return null;
   }
 
   /**
