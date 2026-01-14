@@ -1,5 +1,5 @@
 /**
- * Image Processor - Handles image parameter processing
+ * Image Processor - Handles image and video parameter processing
  * Supports both URL download and binary data upload
  */
 
@@ -7,8 +7,8 @@ import { IExecuteFunctions, NodeOperationError } from 'n8n-workflow';
 import type { BinaryData } from '../types';
 import { Logger } from '../logger';
 import { validateUrl } from '../validation';
-import { generateUniqueFilename, getMaxImageSizeBytes, formatBytes, getMaxBase64Length } from '../utils';
-import { IMAGE_MIME_TYPES, BASE64_DECODE_FACTOR } from '../constants';
+import { generateUniqueFilename, getMaxVideoSizeBytes, getMaxImageSizeBytes, formatBytes, getMaxBase64Length } from '../utils';
+import { IMAGE_MIME_TYPES, VIDEO_MIME_TYPES, BASE64_DECODE_FACTOR } from '../constants';
 
 export interface ImageProcessorConfig {
   executeFunctions: IExecuteFunctions;
@@ -58,32 +58,36 @@ export class ImageProcessor {
   }
 
   /**
-   * Process image from URL - download and upload to ComfyUI
+   * Process image or video from URL - download and upload to ComfyUI
    * Uses configuration object instead of multiple parameters
    */
   async processFromUrl(config: ProcessFromUrlConfig): Promise<ImageUploadResult> {
     const { paramName, imageUrl, index, uploadImage, timeout } = config;
 
-    this.validateImageUrl(imageUrl, index);
-    await this.validateImageUrlFormat(imageUrl, index);
+    this.validateFileUrl(imageUrl, index);
+    await this.validateFileUrlFormat(imageUrl, index);
 
-    this.logger.info(`Downloading image from URL`, { url: imageUrl, paramName });
+    this.logger.info(`Downloading file from URL`, { url: imageUrl, paramName });
 
-    const imageBuffer = await this.downloadImage(imageUrl, index, timeout);
-    this.validateImageSize(imageBuffer, index);
+    const fileBuffer = await this.downloadFile(imageUrl, index, timeout);
+    
+    // Detect MIME type from URL extension for size validation
+    const ext = this.getFileExtensionFromUrl(imageUrl);
+    const mimeType = this.getMimeTypeFromExtension(ext);
+    this.validateFileSize(fileBuffer, index, mimeType);
 
-    const filename = generateUniqueFilename('png', 'download');
-    this.logger.info(`Uploading image to ComfyUI`, { filename, size: imageBuffer.length });
+    const filename = generateUniqueFilename(ext || 'png', 'download');
+    this.logger.info(`Uploading file to ComfyUI`, { filename, size: fileBuffer.length });
 
-    const uploadedFilename = await uploadImage(imageBuffer, filename);
+    const uploadedFilename = await uploadImage(fileBuffer, filename);
 
-    this.logger.info(`Successfully uploaded image`, { paramName, filename: uploadedFilename });
+    this.logger.info(`Successfully uploaded file`, { paramName, filename: uploadedFilename });
 
-    return { filename: uploadedFilename, size: imageBuffer.length };
+    return { filename: uploadedFilename, size: fileBuffer.length };
   }
 
   /**
-   * Process image from binary data - extract from input and upload to ComfyUI
+   * Process image or video from binary data - extract from input and upload to ComfyUI
    * Uses configuration object instead of multiple parameters
    */
   async processFromBinary(config: ProcessFromBinaryConfig): Promise<ImageUploadResult> {
@@ -93,7 +97,7 @@ export class ImageProcessor {
     if (this.isToolMode) {
       throw new NodeOperationError(
         this.executeFunctions.getNode(),
-        `Node Parameters ${index + 1}: Binary image input is not supported in Tool mode. Please use URL input instead.`
+        `Node Parameters ${index + 1}: Binary file input is not supported in Tool mode. Please use URL input instead.`
       );
     }
 
@@ -116,7 +120,7 @@ export class ImageProcessor {
     this.logger.debug(`Found binary property "${binaryPropertyName || 'data'}" in input`);
 
     const buffer = this.decodeBinaryData(binaryData, index);
-    this.validateDecodedBuffer(buffer, binaryPropertyName || 'data', index);
+    this.validateDecodedBuffer(buffer, binaryPropertyName || 'data', index, binaryData.mimeType);
 
     const filename = binaryData.fileName || generateUniqueFilename(
       binaryData.mimeType?.split('/')[1] || 'png',
@@ -138,13 +142,13 @@ export class ImageProcessor {
   }
 
   /**
-   * Validate image URL is provided
+   * Validate file URL is provided
    */
-  private validateImageUrl(imageUrl: string, index: number): void {
-    if (!imageUrl) {
+  private validateFileUrl(fileUrl: string, index: number): void {
+    if (!fileUrl) {
       throw new NodeOperationError(
         this.executeFunctions.getNode(),
-        `Node Parameters ${index + 1}: Image URL is required when Image Input Type is set to URL.`
+        `Node Parameters ${index + 1}: File URL is required when File Input Type is set to URL.`
       );
     }
   }
@@ -152,12 +156,12 @@ export class ImageProcessor {
   /**
    * Validate URL format (allows private network addresses for internal use)
    */
-  private async validateImageUrlFormat(imageUrl: string, index: number): Promise<void> {
+  private async validateFileUrlFormat(fileUrl: string, index: number): Promise<void> {
     try {
-      if (!validateUrl(imageUrl)) {
+      if (!validateUrl(fileUrl)) {
         throw new NodeOperationError(
           this.executeFunctions.getNode(),
-          `Node Parameters ${index + 1}: Invalid image URL "${imageUrl}". ` +
+          `Node Parameters ${index + 1}: Invalid file URL "${fileUrl}". ` +
           `Must be a valid HTTP/HTTPS URL.`
         );
       }
@@ -174,35 +178,35 @@ export class ImageProcessor {
   }
 
   /**
-   * Download image from URL
+   * Download file from URL
    */
-  private async downloadImage(imageUrl: string, index: number, timeout: number): Promise<Buffer> {
+  private async downloadFile(fileUrl: string, index: number, timeout: number): Promise<Buffer> {
     try {
-      const imageResponse = await this.executeFunctions.helpers.httpRequest({
+      const fileResponse = await this.executeFunctions.helpers.httpRequest({
         method: 'GET',
-        url: imageUrl,
+        url: fileUrl,
         encoding: 'arraybuffer',
         timeout: timeout * 1000,
       });
 
-      if (!imageResponse || !Buffer.isBuffer(imageResponse)) {
+      if (!fileResponse || !Buffer.isBuffer(fileResponse)) {
         throw new NodeOperationError(
           this.executeFunctions.getNode(),
-          `Node Parameters ${index + 1}: Failed to download image from URL "${imageUrl}". The server did not return valid image data.`
+          `Node Parameters ${index + 1}: Failed to download file from URL "${fileUrl}". The server did not return valid file data.`
         );
       }
 
-      const imageBuffer = Buffer.from(imageResponse);
+      const fileBuffer = Buffer.from(fileResponse);
 
-      if (imageBuffer.length === 0) {
+      if (fileBuffer.length === 0) {
         throw new NodeOperationError(
           this.executeFunctions.getNode(),
-          `Node Parameters ${index + 1}: Downloaded image from URL "${imageUrl}" is empty.`
+          `Node Parameters ${index + 1}: Downloaded file from URL "${fileUrl}" is empty.`
         );
       }
 
-      this.logger.info(`Successfully downloaded image`, { size: imageBuffer.length, url: imageUrl });
-      return imageBuffer;
+      this.logger.info(`Successfully downloaded file`, { size: fileBuffer.length, url: fileUrl });
+      return fileBuffer;
 
     } catch (error: unknown) {
       if (error instanceof NodeOperationError) {
@@ -213,7 +217,7 @@ export class ImageProcessor {
       const statusCode = httpError.response?.statusCode;
       const statusMessage = httpError.response?.statusMessage;
 
-      let errorMessage = `Node Parameters ${index + 1}: Failed to download image from URL "${imageUrl}"`;
+      let errorMessage = `Node Parameters ${index + 1}: Failed to download file from URL "${fileUrl}"`;
       if (statusCode) {
         errorMessage += ` (HTTP ${statusCode} ${statusMessage || ''})`;
       }
@@ -222,7 +226,7 @@ export class ImageProcessor {
       if (statusCode === 403) {
         errorMessage += ' Note: The URL may require authentication or block automated access.';
       } else if (statusCode === 404) {
-        errorMessage += ' Note: The URL may be incorrect or the image may have been removed.';
+        errorMessage += ' Note: The URL may be incorrect or the file may have been removed.';
       } else if (statusCode === 400) {
         errorMessage += ' Note: The URL may be malformed or the server may be rejecting the request.';
       }
@@ -232,17 +236,44 @@ export class ImageProcessor {
   }
 
   /**
-   * Validate downloaded image size
+   * Validate downloaded file size
    */
-  private validateImageSize(buffer: Buffer, index: number): void {
-    const maxImageSize = getMaxImageSizeBytes();
+  private validateFileSize(buffer: Buffer, index: number, mimeType: string): void {
+    // Determine max size based on file type
+    const isVideo = Object.values(VIDEO_MIME_TYPES).includes(mimeType);
+    const maxSize = isVideo ? getMaxVideoSizeBytes() : getMaxImageSizeBytes();
 
-    if (buffer.length > maxImageSize) {
+    if (buffer.length > maxSize) {
       throw new NodeOperationError(
         this.executeFunctions.getNode(),
-        `Node Parameters ${index + 1}: Downloaded image size (${formatBytes(buffer.length)}) exceeds maximum allowed size of ${formatBytes(maxImageSize)}`
+        `Node Parameters ${index + 1}: Downloaded file size (${formatBytes(buffer.length)}) exceeds maximum allowed size of ${formatBytes(maxSize)}`
       );
     }
+  }
+
+  /**
+   * Get file extension from URL
+   */
+  private getFileExtensionFromUrl(url: string): string {
+    try {
+      const urlObj = new URL(url);
+      const pathname = urlObj.pathname;
+      const ext = pathname.split('.').pop()?.toLowerCase();
+      return ext || 'png';
+    } catch {
+      // If URL parsing fails, try to extract extension directly
+      const ext = url.split('.').pop()?.toLowerCase();
+      return ext || 'png';
+    }
+  }
+
+  /**
+   * Get MIME type from file extension
+   */
+  private getMimeTypeFromExtension(ext: string): string {
+    const imageMimeType = IMAGE_MIME_TYPES[ext];
+    const videoMimeType = VIDEO_MIME_TYPES[ext];
+    return videoMimeType || imageMimeType || 'image/png';
   }
 
   /**
@@ -323,7 +354,7 @@ export class ImageProcessor {
     }
 
     const mimeType = binaryData.mimeType.toLowerCase();
-    const allowedMimeTypes = Object.values(IMAGE_MIME_TYPES);
+    const allowedMimeTypes = [...Object.values(IMAGE_MIME_TYPES), ...Object.values(VIDEO_MIME_TYPES)];
 
     if (!allowedMimeTypes.includes(mimeType)) {
       throw new NodeOperationError(
@@ -352,8 +383,10 @@ export class ImageProcessor {
   /**
    * Validate decoded buffer size
    */
-  private validateDecodedBuffer(buffer: Buffer, binaryPropertyName: string, index: number): void {
-    const maxBufferSize = getMaxImageSizeBytes();
+  private validateDecodedBuffer(buffer: Buffer, binaryPropertyName: string, index: number, mimeType?: string): void {
+    // Determine max size based on file type
+    const isVideo = mimeType ? Object.values(VIDEO_MIME_TYPES).includes(mimeType) : false;
+    const maxBufferSize = isVideo ? getMaxVideoSizeBytes() : getMaxImageSizeBytes();
 
     if (buffer.length > maxBufferSize) {
       throw new NodeOperationError(

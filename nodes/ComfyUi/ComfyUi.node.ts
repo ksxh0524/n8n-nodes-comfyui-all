@@ -218,9 +218,9 @@ export class ComfyUi {
 														description: 'True/False',
 													},
 													{
-														name: 'Image',
-														value: 'image',
-														description: 'Image file (from binary data or URL)',
+														name: 'File',
+														value: 'file',
+														description: 'Image or video file (from binary data or URL)',
 													},
 													],
 												displayOptions: {
@@ -230,11 +230,11 @@ export class ComfyUi {
 												},
 											},
 											{
-												displayName: 'Image Input Type',
+												displayName: 'File Input Type',
 												name: 'imageSource',
 												type: 'options',
 												default: 'url',
-												description: 'How to input image',
+												description: 'How to input file',
 												options: [
 													{
 														name: 'URL',
@@ -250,25 +250,25 @@ export class ComfyUi {
 												displayOptions: {
 													show: {
 														parameterMode: ['single'],
-														type: ['image'],
+														type: ['file'],
 													},
 												},
 											},
 											{
-												displayName: 'Image URL',
+												displayName: 'File URL',
 												name: 'imageUrl',
 												type: 'string',
 												default: '',
-												description: 'URL of the image to download and upload to ComfyUI',
-												placeholder: 'https://example.com/image.png',
+												description: 'URL of the image or video to download and upload to ComfyUI',
+												placeholder: 'https://example.com/file.mp4',
 												displayOptions: {
 													show: {
 														parameterMode: ['single'],
-														type: ['image'],
+														type: ['file'],
 														imageSource: ['url'],
 													},
 												},
-												hint: 'Enter the URL of the image to use',
+												hint: 'Enter the URL of the file to use',
 											},
 											{
 												displayName: 'Value',
@@ -297,7 +297,7 @@ export class ComfyUi {
 												displayOptions: {
 													show: {
 														parameterMode: ['single'],
-														type: ['image'],
+														type: ['file'],
 														imageSource: ['binary'],
 													},
 												},

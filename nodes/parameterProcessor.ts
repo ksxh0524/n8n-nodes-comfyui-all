@@ -60,12 +60,12 @@ interface SingleParameterProcessConfig {
   paramName: string;
 
   // Parameter type
-  type: 'text' | 'number' | 'boolean' | 'image';
+  type: 'text' | 'number' | 'boolean' | 'image' | 'file';
 
   // Value (grouped by type)
   value: ParameterValueConfig;
 
-  // Image-specific (only used when type === 'image')
+  // File-specific (only used when type === 'image' or type === 'file')
   image?: ImageConfig;
 
   // Context

@@ -253,6 +253,15 @@ export function getMaxBase64Length(): number {
 }
 
 /**
+ * Get maximum Base64 encoded length for a video
+ * Base64 encoding increases size by approximately 33% (4/3 ratio)
+ * @returns Maximum Base64 length in bytes
+ */
+export function getMaxVideoBase64Length(): number {
+  return getMaxVideoSizeBytes() * 4 / 3;
+}
+
+/**
  * Format bytes to human-readable size
  * @param bytes - Size in bytes
  * @param decimals - Number of decimal places (default: 2)

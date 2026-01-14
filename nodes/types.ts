@@ -29,7 +29,7 @@ export interface NodeParameterConfig {
   booleanValue?: Booleanish;
   imageSource?: 'binary' | 'url';
   imageUrl?: string;
-  type?: 'text' | 'number' | 'boolean' | 'image';
+  type?: 'text' | 'number' | 'boolean' | 'image' | 'file';
 }
 
 /**

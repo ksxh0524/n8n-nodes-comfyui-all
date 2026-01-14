@@ -133,9 +133,9 @@ These allow you to dynamically override any value in your ComfyUI workflow.
 |-------|--------------|
 | **Node ID** | The ComfyUI node to change (e.g., "6", "13") |
 | **Parameter Mode** | "Single" for one parameter, "Multiple" for JSON object |
-| **Type** | Text, Number, Boolean, or Image |
+| **Type** | Text, Number, Boolean, Image, or File |
 | **Value** | The value to set (for single mode) |
-| **Image Input Type** | URL or Binary (for image type) |
+| **Image Input Type** | URL or Binary (for image or file type) |
 | **Image URL** | URL of image (when using URL input) |
 | **Parameters JSON** | JSON object with multiple parameters |
 
@@ -401,9 +401,14 @@ Video generation:      600-1800 seconds
 - Make sure the node exists in your workflow
 
 ### "Failed to download image"
-- Make sure the URL is publicly accessible
+- Make sure to URL is publicly accessible
 - Cannot use localhost URLs in Tool mode
 - Check network connectivity
+
+### "Workflow execution cancelled"
+- Task was cancelled by user or system
+- Check n8n logs for cancellation details
+- This is normal behavior and not an error
 
 ### "Binary property not found"
 - Check the previous node's "Output Binary Key" setting

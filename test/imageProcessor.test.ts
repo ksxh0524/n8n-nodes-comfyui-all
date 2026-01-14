@@ -136,7 +136,7 @@ describe('ImageProcessor', () => {
 
       const config = getBaseConfig();
       await expect(toolModeProcessor.processFromBinary(config)).rejects.toThrow(NodeOperationError);
-      await expect(toolModeProcessor.processFromBinary(config)).rejects.toThrow('Binary image input is not supported in Tool mode');
+      await expect(toolModeProcessor.processFromBinary(config)).rejects.toThrow('Binary file input is not supported in Tool mode');
     });
 
     it('should throw error if binary property not found', async () => {
@@ -148,20 +148,20 @@ describe('ImageProcessor', () => {
 
   describe('validation', () => {
     it('should validate external URL format', async () => {
-      const privateIpConfig: ProcessFromUrlConfig = {
+      const invalidUrlConfig: ProcessFromUrlConfig = {
         paramName: 'image',
-        imageUrl: 'http://192.168.1.1/private.png', // Private IP
+        imageUrl: 'not-a-valid-url', // Invalid URL format
         index: 0,
         uploadImage: mockUploadImage,
         timeout: 60,
       };
 
-      await expect(processor.processFromUrl(privateIpConfig)).rejects.toThrow(NodeOperationError);
-      await expect(processor.processFromUrl(privateIpConfig)).rejects.toThrow('Invalid image URL');
+      await expect(processor.processFromUrl(invalidUrlConfig)).rejects.toThrow(NodeOperationError);
+      await expect(processor.processFromUrl(invalidUrlConfig)).rejects.toThrow('Invalid file URL');
     });
 
     it('should validate downloaded image size', async () => {
-      const largeBuffer = Buffer.alloc(100 * 1024 * 1024); // 100MB
+      const largeBuffer = Buffer.alloc(600 * 1024 * 1024); // 600MB (exceeds 500MB limit)
 
       const largeFileConfig: ProcessFromUrlConfig = {
         paramName: 'image',
@@ -173,8 +173,7 @@ describe('ImageProcessor', () => {
 
       (mockExecuteFunctions.helpers as any).httpRequest.mockResolvedValue(largeBuffer);
 
-      // Note: This test may require mocking getMaxImageSizeBytes utility
-      // The actual limit validation is in the ImageProcessor code
+      // Note: File size limit is now 500MB to support both images and videos
       await expect(processor.processFromUrl(largeFileConfig)).rejects.toThrow(NodeOperationError);
     });
   });

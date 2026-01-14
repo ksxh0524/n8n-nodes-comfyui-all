@@ -596,9 +596,9 @@ export class ComfyUIClient {
   ): WorkflowResult | null {
     const { status, node_errors } = promptData;
 
-    // Check if status_str indicates an error
-    if (status.status_str === 'error') {
-      this.logger.error('ComfyUI execution failed with status: error');
+    // Check if status_str indicates an error or cancellation
+    if (status.status_str === 'error' || status.status_str === 'cancelled' || status.status_str === 'aborted') {
+      this.logger.error(`ComfyUI execution failed with status: ${status.status_str}`);
     }
 
     // Check for node errors
@@ -745,43 +745,49 @@ export class ComfyUIClient {
   }
 
   /**
-   * Upload an image to ComfyUI server
-   * @param imageData - Image data as Buffer
+   * Upload an image or video to ComfyUI server
+   * @param imageData - Image or video data as Buffer
    * @param filename - Name of the file to upload
    * @param overwrite - Whether to overwrite existing file
    * @returns Promise containing the uploaded filename
-   * @throws Error if image data is invalid or upload fails
+   * @throws Error if file data is invalid or upload fails
    */
   async uploadImage(imageData: Buffer, filename: string, overwrite: boolean = false): Promise<string> {
     if (this.isClientDestroyed()) {
       throw new Error('Client has been destroyed');
     }
 
-    // Validate image data
+    // Validate file data
     if (!Buffer.isBuffer(imageData)) {
-      throw new Error('Invalid image data: expected Buffer');
+      throw new Error('Invalid file data: expected Buffer');
     }
 
     if (imageData.length === 0) {
-      throw new Error('Invalid image data: buffer is empty');
+      throw new Error('Invalid file data: buffer is empty');
     }
 
-    // Validate image size (maximum 50MB as defined in VALIDATION.MAX_IMAGE_SIZE_MB)
-    const maxSize = getMaxImageSizeBytes();
+    // Detect MIME type from filename extension
+    const ext = filename.split('.').pop()?.toLowerCase() || '';
+    const imageMimeType = IMAGE_MIME_TYPES[ext];
+    const videoMimeType = VIDEO_MIME_TYPES[ext];
+    const mimeType = videoMimeType || imageMimeType || 'image/png';
+
+    // Validate file size based on type
+    const maxSize = videoMimeType ? getMaxVideoSizeBytes() : getMaxImageSizeBytes();
     if (imageData.length > maxSize) {
       throw new Error(
-        `Image size (${formatBytes(imageData.length)}) exceeds maximum allowed size of ${formatBytes(maxSize)}`
+        `File size (${formatBytes(imageData.length)}) exceeds maximum allowed size of ${formatBytes(maxSize)}`
       );
     }
 
-    this.logger.debug('Uploading image:', { filename, size: imageData.length });
+    this.logger.debug('Uploading file:', { filename, size: imageData.length, mimeType });
 
     // Ensure FormData is available (Node.js 18+)
     ensureFormDataAvailable();
 
     // Create FormData for file upload
     const formData = new FormData();
-    formData.append('image', new Blob([imageData], { type: 'image/png' }), filename);
+    formData.append('image', new Blob([imageData], { type: mimeType }), filename);
     formData.append('overwrite', overwrite.toString());
 
     const response = await this.retryRequest(() =>

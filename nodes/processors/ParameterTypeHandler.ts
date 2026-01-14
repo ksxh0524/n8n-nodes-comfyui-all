@@ -1,6 +1,6 @@
 /**
  * Parameter Type Handler - Handles different parameter types
- * Supports text, number, boolean, and image parameters
+ * Supports text, number, boolean, image, and file parameters
  */
 
 import { NodeOperationError } from 'n8n-workflow';
@@ -157,6 +157,7 @@ export class ParameterTypeHandler {
         return this.processBoolean(booleanValue);
 
       case 'image':
+      case 'file':
         return await this.processImage({
           nodeId,
           paramName,

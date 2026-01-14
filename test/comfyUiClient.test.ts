@@ -231,7 +231,7 @@ describe('ComfyUIClient Integration Tests', () => {
     });
 
     it('should validate buffer type', async () => {
-      await expect(client.uploadImage('not a buffer' as any, 'test.png')).rejects.toThrow('Invalid image data');
+      await expect(client.uploadImage('not a buffer' as any, 'test.png')).rejects.toThrow('Invalid file data');
     });
   });
 
