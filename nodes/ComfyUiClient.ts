@@ -481,6 +481,13 @@ export class ComfyUIClient {
           };
           const status = promptData.status;
 
+          this.logger.info('📦 History API response', {
+            promptId,
+            status: status.status_str,
+            completed: status.completed,
+            hasOutputs: !!promptData.outputs,
+          });
+
           // Check for execution errors BEFORE checking completion status
           // ComfyUI may set status_str to 'error' with node_errors before marking as completed
           if (status.status_str === 'error' || (promptData.node_errors && Object.keys(promptData.node_errors).length > 0)) {
@@ -490,7 +497,11 @@ export class ComfyUIClient {
             }
           }
 
-          if (status.completed) {
+          // Check for completion: either 'completed' flag is true OR status_str is 'success'
+          // RunningHub uses status_str: 'success' instead of completed: true
+          const isCompleted = status.completed === true || status.status_str === 'success';
+
+          if (isCompleted) {
             // Double-check for errors even when completed (some errors only appear after completion)
             const errorResult = this.extractExecutionErrors(promptData);
             if (errorResult) {
@@ -498,6 +509,11 @@ export class ComfyUIClient {
             }
 
             // No errors, proceed to extract results
+            this.logger.info('Workflow execution completed successfully', {
+              statusStr: status.status_str,
+              completed: status.completed,
+              hasOutputs: !!promptData.outputs,
+            });
             return this.extractResults(promptData.outputs);
           }
 
@@ -669,8 +685,8 @@ export class ComfyUIClient {
 
       const nodeOutputObj = nodeOutput as { images?: unknown[]; videos?: unknown[]; gifs?: unknown[] };
 
-      // Process images
       if (nodeOutputObj.images && Array.isArray(nodeOutputObj.images)) {
+        this.logger.info(`🖼️  Found ${nodeOutputObj.images.length} images in node ${nodeId}`);
         for (const image of nodeOutputObj.images) {
           const imageObj = image as { filename: string; subfolder?: string; type: string };
           const imageUrl = `/view?filename=${imageObj.filename}&subfolder=${imageObj.subfolder || ''}&type=${imageObj.type}`;
@@ -678,8 +694,8 @@ export class ComfyUIClient {
         }
       }
 
-      // Process videos (videos array)
       if (nodeOutputObj.videos && Array.isArray(nodeOutputObj.videos)) {
+        this.logger.info(`🎬 Found ${nodeOutputObj.videos.length} videos in node ${nodeId}`);
         for (const video of nodeOutputObj.videos) {
           const videoObj = video as { filename: string; subfolder?: string; type: string };
           const videoUrl = `/view?filename=${videoObj.filename}&subfolder=${videoObj.subfolder || ''}&type=${videoObj.type}`;
@@ -687,14 +703,22 @@ export class ComfyUIClient {
         }
       }
 
-      // Process videos (gifs array) - some nodes use this name
       if (nodeOutputObj.gifs && Array.isArray(nodeOutputObj.gifs)) {
+        this.logger.info(`🎬 Found ${nodeOutputObj.gifs.length} gifs in node ${nodeId}`);
         for (const video of nodeOutputObj.gifs) {
           const videoObj = video as { filename: string; subfolder?: string; type: string };
           const videoUrl = `/view?filename=${videoObj.filename}&subfolder=${videoObj.subfolder || ''}&type=${videoObj.type}`;
           result.videos?.push(videoUrl);
         }
       }
+    }
+
+    if (result.images && result.images.length > 0) {
+      this.logger.info(`Total images: ${result.images.length}`);
+    }
+
+    if (result.videos && result.videos.length > 0) {
+      this.logger.info(`Total videos: ${result.videos.length}`);
     }
 
     return result;
@@ -998,26 +1022,25 @@ export class ComfyUIClient {
     if (result.images && result.images.length > 0) {
       jsonData.images = result.images;
       jsonData.imageUrls = result.images.map(img => `${this.baseUrl}${img}`);
+      this.logger.info(`🖼️  Generated ${result.images.length} image URLs`);
     }
 
     if (result.videos && result.videos.length > 0) {
       jsonData.videos = result.videos;
       jsonData.videoUrls = result.videos.map(vid => `${this.baseUrl}${vid}`);
+      this.logger.info(`🎬 Generated ${result.videos.length} video URLs`);
     }
 
     const binaryData: Record<string, BinaryData> = {};
     const bufferTracker = new BufferTracker(VALIDATION.MAX_TOTAL_IMAGE_MEMORY_MB * 1024 * 1024);
 
     try {
-      // Calculate total number of files
       const totalFiles = (result.images?.length || 0) + (result.videos?.length || 0);
-      const useIndex = totalFiles > 1; // Use index only if multiple files
+      const useIndex = totalFiles > 1;
+      let fileIndex = 0;
 
-      let fileIndex = 0; // Unified index for all files (images + videos)
-
-      // Fetch and process images in batches
       if (result.images && result.images.length > 0) {
-        this.logger.info(`Starting download of ${result.images.length} images`);
+        this.logger.info(`Downloading ${result.images.length} images...`);
 
         const imageBuffers = await this.getImageBuffers(result.images);
 
@@ -1046,12 +1069,11 @@ export class ComfyUIClient {
         }
 
         jsonData.imageCount = result.images.length;
-        this.logger.info(`Successfully processed ${result.images.length} images`);
+        this.logger.info(`✅ Successfully processed ${result.images.length} images`);
       }
 
-      // Fetch and process videos in batches
       if (result.videos && result.videos.length > 0) {
-        this.logger.info(`Starting download of ${result.videos.length} videos`);
+        this.logger.info(`Downloading ${result.videos.length} videos...`);
 
         const videoBuffers = await this.getVideoBuffers(result.videos);
 
@@ -1059,7 +1081,6 @@ export class ComfyUIClient {
           const videoPath = result.videos[i];
           const videoBuffer = videoBuffers[i];
 
-          // Validate video buffer exists
           if (!videoBuffer) {
             this.logger.warn(`Video buffer at index ${i} is undefined, skipping`);
             continue;
@@ -1085,7 +1106,7 @@ export class ComfyUIClient {
         }
 
         jsonData.videoCount = result.videos.length;
-        this.logger.info(`Successfully processed ${result.videos.length} videos`);
+        this.logger.info(`✅ Successfully processed ${result.videos.length} videos`);
       }
 
       this.logger.debug('Buffer tracking statistics:', bufferTracker.getStats());

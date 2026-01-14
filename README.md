@@ -35,10 +35,8 @@ You can use this node to:
 ## Quick Setup
 
 ### 1. Install
-
 ```bash
 # n8n Cloud: Settings → Community Nodes → Install → n8n-nodes-comfyui-all
-
 # Self-hosted:
 cd ~/.n8n
 npm install n8n-nodes-comfyui-all
@@ -46,14 +44,23 @@ npm install n8n-nodes-comfyui-all
 
 ### 2. Run ComfyUI
 
-Make sure ComfyUI is running:
+**Option A: Local ComfyUI**
 ```bash
 # Default: http://127.0.0.1:8188
 ```
 
+**Option B: RunningHub Cloud Service**
+```bash
+# RunningHub provides cloud ComfyUI service
+# Get your API key from: https://www.runninghub.cn/?inviteCode=rh-v1052
+# Use one of these URLs:
+# 24G GPU: https://www.runninghub.cn/proxy/YOUR_API_KEY
+# 48G GPU: https://www.runninghub.cn/proxy-plus/YOUR_API_KEY
+```
+
 ### 3. Use in n8n
 
-Add the **ComfyUI** node to your workflow! It will automatically detect the best execution mode.
+Add the **ComfyUI** node to your workflow! It will automatically detect of best execution mode.
 
 ---
 
@@ -111,7 +118,7 @@ The node provides intelligent warnings when:
 
 | Parameter | What It Does | Example |
 |-----------|--------------|---------|
-| **ComfyUI URL** | Where ComfyUI is running | `http://127.0.0.1:8188` |
+| **ComfyUI URL** | Where ComfyUI is running | `http://127.0.0.1:8188` (local) or `https://www.runninghub.cn/proxy/YOUR_API_KEY` (RunningHub) |
 | **Workflow JSON** | Your ComfyUI workflow (API format) | `{...}` |
 | **Timeout** | Max wait time for execution (seconds) | `300` (5 minutes) |
 | **Output Binary Key** | Property name for output binary data | `data` |
@@ -272,6 +279,59 @@ Same as image generation, just use a video workflow!
 3. Click **"Save (API Format)"** (not "Save")
 4. Copy the JSON
 5. Paste it in the node's **Workflow JSON** field
+
+---
+
+## RunningHub Cloud Service
+
+RunningHub provides cloud ComfyUI service that is fully compatible with this node.
+
+### Getting Started
+
+1. **Get Your API Key**
+   - **International users** (outside China): https://www.runninghub.ai/?inviteCode=rh-v1052
+   - **China mainland users**: https://www.runninghub.cn/?inviteCode=rh-v1052
+   - Register using either link above
+
+2. **Choose Your GPU Plan**
+   - 24G GPU: Standard performance
+   - 48G GPU: High performance (for complex workflows)
+
+3. **Configure ComfyUI Node**
+   - **International users**: Use one of:
+     - 24G: `https://www.runninghub.ai/proxy/YOUR_API_KEY`
+     - 48G: `https://www.runninghub.ai/proxy-plus/YOUR_API_KEY`
+   - **China mainland users**: Use one of:
+     - 24G: `https://www.runninghub.cn/proxy/YOUR_API_KEY`
+     - 48G: `https://www.runninghub.cn/proxy-plus/YOUR_API_KEY`
+   - Replace `YOUR_API_KEY` with your actual API key
+
+4. **Model Management**
+   - Browse models in RunningHub's model library
+   - Click "★" to favorite models you want to use
+   - Favorited models will be available in your workflows
+
+5. **🎁 Bonus Rewards**
+   - Use invite code `rh-v1052` when registering
+   - Get **1000 RH coins** as bonus reward
+   - Coins can be used for premium features on RunningHub
+   - Works for both international and China mainland users
+
+### Advantages of RunningHub
+
+- ✅ **No local setup required** - No need to install ComfyUI locally
+- ✅ **High performance** - Cloud GPUs with fast processing
+- ✅ **Easy integration** - Just change the URL in n8n
+- ✅ **Full compatibility** - Works exactly like local ComfyUI
+- ✅ **Model library** - Access to pre-installed models
+- ✅ **Auto-scaling** - Handles complex workflows automatically
+
+### Usage Tips
+
+- For simple workflows, 24G GPU is sufficient
+- For complex workflows (video, high-res images), use 48G GPU
+- The node automatically handles RunningHub's response format
+- Works in both Tool mode (URLs only) and Action mode (full binary)
 
 ---
 
