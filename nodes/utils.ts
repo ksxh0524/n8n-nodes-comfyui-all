@@ -148,7 +148,7 @@ export function validateFilename(filename: string): string {
   // Limit filename length
   const MAX_FILENAME_LENGTH = 255;
   if (filename.length > MAX_FILENAME_LENGTH) {
-    throw new Error(`文件名过长（最大 ${MAX_FILENAME_LENGTH} 个字符）`);
+    throw new Error(`Filename too long (maximum ${MAX_FILENAME_LENGTH} characters)`);
   }
 
   // Remove null bytes

@@ -127,21 +127,21 @@ export function createErrorFromHttpError(
     message = `${defaultMessage}: ${errorCode}`;
   }
 
-  // Use friendly error messages (Chinese with English fallback)
+  // Use friendly error messages (English)
   if (errorCode === 'ECONNREFUSED') {
-    return new ComfyUIConnectionError(ERROR_MESSAGES.CONNECTION_REFUSED.zh, details);
+    return new ComfyUIConnectionError(ERROR_MESSAGES.CONNECTION_REFUSED.en, details);
   } else if (errorCode === 'ETIMEDOUT' || errorCode === 'ECONNABORTED') {
-    return new ComfyUITimeoutError(ERROR_MESSAGES.TIMEOUT.zh, details);
+    return new ComfyUITimeoutError(ERROR_MESSAGES.TIMEOUT.en, details);
   } else if (statusCode === 403) {
-    return new ComfyUIConnectionError(ERROR_MESSAGES.FORBIDDEN.zh, details);
+    return new ComfyUIConnectionError(ERROR_MESSAGES.FORBIDDEN.en, details);
   } else if (statusCode === 404) {
-    return new ComfyUIConnectionError(ERROR_MESSAGES.NOT_FOUND.zh, details);
+    return new ComfyUIConnectionError(ERROR_MESSAGES.NOT_FOUND.en, details);
   } else if (statusCode === 400) {
-    return new ComfyUIValidationError(ERROR_MESSAGES.BAD_REQUEST.zh, details);
+    return new ComfyUIValidationError(ERROR_MESSAGES.BAD_REQUEST.en, details);
   } else if (statusCode === 500) {
-    return new ComfyUIExecutionError(ERROR_MESSAGES.INTERNAL_ERROR.zh, details);
+    return new ComfyUIExecutionError(ERROR_MESSAGES.INTERNAL_ERROR.en, details);
   } else if (statusCode === 503) {
-    return new ComfyUIExecutionError(ERROR_MESSAGES.SERVICE_UNAVAILABLE.zh, details);
+    return new ComfyUIExecutionError(ERROR_MESSAGES.SERVICE_UNAVAILABLE.en, details);
   }
 
   return new ComfyUIError(message, 'HTTP_ERROR', statusCode, details);

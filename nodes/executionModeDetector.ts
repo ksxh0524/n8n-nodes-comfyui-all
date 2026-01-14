@@ -141,7 +141,7 @@ function detectByHeuristics(inputData: INodeExecutionData[]): DetectionResult | 
       strongActionIndicators.hasComfyUIKeys) {
     return {
       mode: 'action',
-      reason: `启发式检测：检测到工作流特征 (二进制: ${strongActionIndicators.hasBinary}, 工作流数据: ${strongActionIndicators.hasWorkflowData})`,
+      reason: `Heuristic detection: Workflow features detected (binary: ${strongActionIndicators.hasBinary}, workflow data: ${strongActionIndicators.hasWorkflowData})`,
       source: 'heuristics',
       confidence: 'medium',
     };
@@ -158,7 +158,7 @@ function detectByHeuristics(inputData: INodeExecutionData[]): DetectionResult | 
   if (toolIndicatorCount >= 2) {
     return {
       mode: 'tool',
-      reason: `启发式检测：检测到多个 AI 工具特征 (${toolIndicatorCount}个特征)`,
+      reason: `Heuristic detection: Multiple AI tool features detected (${toolIndicatorCount} features)`,
       source: 'heuristics',
       confidence: 'medium',
     };
@@ -184,7 +184,7 @@ export function detectExecutionMode(
     if (isToolExecutionByApi(executeFunctions)) {
       return {
         mode: 'tool',
-        reason: '检测到 AI Agent 工具调用 (n8n API: isToolExecution)',
+        reason: 'AI Agent tool call detected (n8n API: isToolExecution)',
         source: 'n8n-api',
         confidence: 'high',
       };
@@ -193,7 +193,7 @@ export function detectExecutionMode(
     if (isToolExecutionByContext(executeFunctions)) {
       return {
         mode: 'tool',
-        reason: '检测到 AI Agent 执行模式 (n8n context: chat mode)',
+        reason: 'AI Agent execution mode detected (n8n context: chat mode)',
         source: 'execution-context',
         confidence: 'high',
       };
@@ -204,7 +204,7 @@ export function detectExecutionMode(
   if (isFromAiAgentByMetadata(inputData)) {
     return {
       mode: 'tool',
-      reason: '检测到 AI Agent 元数据标记',
+      reason: 'AI Agent metadata marker detected',
       source: 'input-data',
       confidence: 'high',
     };
@@ -219,7 +219,7 @@ export function detectExecutionMode(
   // Layer 4: Default to action mode
   return {
     mode: 'action',
-    reason: '默认 Action 模式（未检测到 AI Agent 特征）',
+    reason: 'Default Action mode (no AI Agent features detected)',
     source: 'default',
     confidence: 'low',
   };

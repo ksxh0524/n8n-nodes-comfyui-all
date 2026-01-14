@@ -291,7 +291,7 @@ export class ComfyUIClient {
   ): Promise<T> {
     // Check if client is destroyed before starting
     if (this.state === ClientState.DESTROYED) {
-      throw new Error('客户端已被销毁');
+      throw new Error('Client has been destroyed');
     }
 
     let lastError: unknown;
@@ -481,8 +481,17 @@ export class ComfyUIClient {
           };
           const status = promptData.status;
 
+          // Check for execution errors BEFORE checking completion status
+          // ComfyUI may set status_str to 'error' with node_errors before marking as completed
+          if (status.status_str === 'error' || (promptData.node_errors && Object.keys(promptData.node_errors).length > 0)) {
+            const errorResult = this.extractExecutionErrors(promptData);
+            if (errorResult) {
+              return errorResult;
+            }
+          }
+
           if (status.completed) {
-            // Check for execution errors before extracting results
+            // Double-check for errors even when completed (some errors only appear after completion)
             const errorResult = this.extractExecutionErrors(promptData);
             if (errorResult) {
               return errorResult;
@@ -698,7 +707,7 @@ export class ComfyUIClient {
    */
   async getHistory(limit: number = 100): Promise<Record<string, unknown>> {
     if (this.isClientDestroyed()) {
-      throw new Error('客户端已被销毁');
+      throw new Error('Client has been destroyed');
     }
 
     const response = await this.retryRequest(() =>
@@ -730,7 +739,7 @@ export class ComfyUIClient {
     }
 
     if (imageData.length === 0) {
-      throw new Error('无效的图像数据：缓冲区为空');
+      throw new Error('Invalid image data: buffer is empty');
     }
 
     // Validate image size (maximum 50MB as defined in VALIDATION.MAX_IMAGE_SIZE_MB)
@@ -817,7 +826,7 @@ export class ComfyUIClient {
   private async getBuffer(path: string, resourceType: 'image' | 'video'): Promise<Buffer> {
     try {
       if (this.isClientDestroyed()) {
-        throw new Error('客户端已被销毁');
+        throw new Error('Client has been destroyed');
       }
 
       const response = await this.httpClient.get<ArrayBuffer>(`${this.baseUrl}${path}`, {
@@ -1008,7 +1017,7 @@ export class ComfyUIClient {
 
       // Fetch and process images in batches
       if (result.images && result.images.length > 0) {
-        this.logger.info(`开始下载 ${result.images.length} 张图像`);
+        this.logger.info(`Starting download of ${result.images.length} images`);
 
         const imageBuffers = await this.getImageBuffers(result.images);
 
@@ -1037,12 +1046,12 @@ export class ComfyUIClient {
         }
 
         jsonData.imageCount = result.images.length;
-        this.logger.info(`成功处理 ${result.images.length} 张图像`);
+        this.logger.info(`Successfully processed ${result.images.length} images`);
       }
 
       // Fetch and process videos in batches
       if (result.videos && result.videos.length > 0) {
-        this.logger.info(`开始下载 ${result.videos.length} 个视频`);
+        this.logger.info(`Starting download of ${result.videos.length} videos`);
 
         const videoBuffers = await this.getVideoBuffers(result.videos);
 
@@ -1076,7 +1085,7 @@ export class ComfyUIClient {
         }
 
         jsonData.videoCount = result.videos.length;
-        this.logger.info(`成功处理 ${result.videos.length} 个视频`);
+        this.logger.info(`Successfully processed ${result.videos.length} videos`);
       }
 
       this.logger.debug('Buffer tracking statistics:', bufferTracker.getStats());
@@ -1086,7 +1095,7 @@ export class ComfyUIClient {
         binary: binaryData,
       };
     } catch (error) {
-      this.logger.error('处理结果时出错', error);
+      this.logger.error('Error processing results', error);
       this.logger.warn('Buffer statistics at error:', bufferTracker.getStats());
       throw error;
     } finally {
@@ -1096,7 +1105,7 @@ export class ComfyUIClient {
         global.gc();
       }
 
-      this.logger.debug('资源清理完成');
+      this.logger.debug('Resource cleanup completed');
     }
   }
 }

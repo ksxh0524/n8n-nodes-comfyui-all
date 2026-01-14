@@ -362,12 +362,12 @@ export class ComfyUi {
     const outputBinaryKey = validateOutputBinaryKey(this.getNodeParameter('outputBinaryKey', 0) as string);
 
     if (!validateUrl(comfyUiUrl)) {
-      throw new NodeOperationError(this.getNode(), 'ComfyUI URL 格式无效。必须是有效的 HTTP/HTTPS URL。\n提示：支持本地部署地址（如 http://localhost:8188、http://127.0.0.1:8188、http://192.168.x.x:8188 等）。');
+      throw new NodeOperationError(this.getNode(), 'ComfyUI URL format is invalid. Must be a valid HTTP/HTTPS URL.\nNote: Local deployments are supported (e.g., http://localhost:8188, http://127.0.0.1:8188, http://192.168.x.x:8188, etc.).');
     }
 
     const workflowValidation = validateComfyUIWorkflow(workflowJson);
     if (!workflowValidation.valid) {
-      throw new NodeOperationError(this.getNode(), `ComfyUI 工作流无效：${workflowValidation.error}。请确保从 ComfyUI 导出 API 格式的工作流。`);
+      throw new NodeOperationError(this.getNode(), `ComfyUI workflow is invalid: ${workflowValidation.error}. Please ensure the workflow is exported in API format from ComfyUI.`);
     }
 
     let workflow: Workflow;
@@ -375,83 +375,83 @@ export class ComfyUi {
       workflow = safeJsonParse(workflowJson, 'Workflow JSON') as Workflow;
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);
-      throw new NodeOperationError(this.getNode(), `解析工作流 JSON 失败：${errorMsg}。请确保 JSON 格式正确。`);
+      throw new NodeOperationError(this.getNode(), `Failed to parse workflow JSON: ${errorMsg}. Please ensure the JSON format is correct.`);
     }
 
     const inputData = this.getInputData();
 
-    // 获取用户配置的执行模式
+    // Get user-configured execution mode
     const configuredMode = this.getNodeParameter('executionMode', 0) as 'auto' | 'tool' | 'action';
 
     let isToolMode: boolean;
     let modeSource: string;
 
-    // 无论用户选择什么，都先进行检测（用于提供建议和警告）
+    // Always detect first (for providing suggestions and warnings)
     const detection = detectExecutionMode(inputData, this);
 
-    // 映射 source 到中文
+    // Map source to English
     const sourceMap = {
       'n8n-api': 'n8n API',
-      'execution-context': '执行上下文',
-      'input-data': '输入数据',
-      'heuristics': '启发式检测',
-      'default': '默认',
+      'execution-context': 'execution context',
+      'input-data': 'input data',
+      'heuristics': 'heuristic detection',
+      'default': 'default',
     };
     const detectedSource = sourceMap[detection.source] || detection.source;
     const detectedMode = detection.mode;
 
-    // 始终显示检测结果（作为参考）
+    // Always show detection results (for reference)
     logger.info('═══════════════════════════════');
-    logger.info('📊 执行模式检测结果');
+    logger.info('📊 Execution Mode Detection Result');
     logger.info('═══════════════════════════════');
     const logInfo = getDetectionLog(detection, inputData);
-    logger.info(`🎯 自动检测建议: ${detectedMode}`);
-    logger.info(`   原因: ${detection.reason}`);
-    logger.info(`   检测来源: ${detection.source}`);
-    logger.info(`   置信度: ${detection.confidence === 'high' ? '高' : detection.confidence === 'medium' ? '中' : '低'}`);
-    logger.info(`   有二进制数据: ${logInfo.hasBinaryData ? '是' : '否'}`);
-    logger.info(`   有输入数据: ${logInfo.hasInputData ? '是' : '否'}`);
+    logger.info(`🎯 Auto-detection suggestion: ${detectedMode}`);
+    logger.info(`   Reason: ${detection.reason}`);
+    logger.info(`   Detection source: ${detection.source}`);
+    logger.info(`   Confidence: ${detection.confidence === 'high' ? 'high' : detection.confidence === 'medium' ? 'medium' : 'low'}`);
+    logger.info(`   Has binary data: ${logInfo.hasBinaryData ? 'yes' : 'no'}`);
+    logger.info(`   Has input data: ${logInfo.hasInputData ? 'yes' : 'no'}`);
     logger.info('═══════════════════════════════');
 
-    // 根据配置决定执行模式
+    // Determine execution mode based on configuration
     if (configuredMode === 'tool') {
-      // 用户手动指定 Tool 模式
+      // User manually specified Tool mode
       isToolMode = true;
-      modeSource = '用户配置';
+      modeSource = 'user config';
 
-      // 如果检测到了特征（非默认）且建议使用 action 模式，给出警告
+      // If features detected (non-default) and action mode is suggested, issue warning
       if (detectedMode === 'action' && detection.source !== 'default') {
-        const confidenceText = detection.confidence === 'high' ? '高' : detection.confidence === 'medium' ? '中' : '低';
-        logger.warn('⚠️  注意: 手动选择 Tool 模式，但自动检测建议使用 Action 模式');
-        logger.warn(`   检测建议: ${detectedMode} 模式 (来源: ${detectedSource}, 置信度: ${confidenceText})`);
-        logger.warn('   建议: 检查执行模式配置是否正确');
+        const confidenceText = detection.confidence === 'high' ? 'high' : detection.confidence === 'medium' ? 'medium' : 'low';
+        logger.warn('⚠️  Note: Tool mode manually selected, but auto-detection suggests Action mode');
+        logger.warn(`   Detection suggestion: ${detectedMode} mode (source: ${detectedSource}, confidence: ${confidenceText})`);
+        logger.warn('   Recommendation: Check if execution mode configuration is correct');
       }
     } else if (configuredMode === 'action') {
-      // 用户手动指定 Action 模式
+      // User manually specified Action mode
       isToolMode = false;
-      modeSource = '用户配置';
+      modeSource = 'user config';
 
-      // 如果检测到了特征（非默认）且建议使用 tool 模式，给出警告
+      // If features detected (non-default) and tool mode is suggested, issue warning
       if (detectedMode === 'tool' && detection.source !== 'default') {
-        const confidenceText = detection.confidence === 'high' ? '高' : detection.confidence === 'medium' ? '中' : '低';
-        logger.warn('⚠️  注意: 手动选择 Action 模式，但自动检测建议使用 Tool 模式');
-        logger.warn(`   检测建议: ${detectedMode} 模式 (来源: ${detectedSource}, 置信度: ${confidenceText})`);
-        logger.warn('   建议: 检查执行模式配置是否正确');
+        const confidenceText = detection.confidence === 'high' ? 'high' : detection.confidence === 'medium' ? 'medium' : 'low';
+        logger.warn('⚠️  Note: Action mode manually selected, but auto-detection suggests Tool mode');
+        logger.warn(`   Detection suggestion: ${detectedMode} mode (source: ${detectedSource}, confidence: ${confidenceText})`);
+        logger.warn('   Recommendation: Check if execution mode configuration is correct');
       }
     } else {
-      // 自动检测模式 - 使用检测结果
+      // Auto-detect mode - use detection result
       isToolMode = detectedMode === 'tool';
       modeSource = detectedSource;
     }
 
-    logger.info(`📋 执行模式配置: ${configuredMode === 'auto' ? '自动检测' : configuredMode === 'tool' ? 'Tool 模式' : 'Action 模式'}`);
-    logger.info(`🔧 实际执行: ${isToolMode ? 'Tool' : 'Action'} 模式 (来源: ${modeSource})`);
+    logger.info(`📋 Execution mode config: ${configuredMode === 'auto' ? 'auto-detect' : configuredMode === 'tool' ? 'Tool mode' : 'Action mode'}`);
+    logger.info(`🔧 Actual execution: ${isToolMode ? 'Tool' : 'Action'} mode (source: ${modeSource})`);
 
     if (isToolMode) {
-      logger.info('⚠️ Tool 模式: 只支持 URL 图片输入，不支持 Binary 输入');
+      logger.info('⚠️ Tool mode: Only URL image input is supported, Binary input is not supported');
     }
 
-    logger.info(`✅ 最终执行: ${isToolMode ? 'tool' : 'action'} 模式 (来源: ${modeSource})`);
+    logger.info(`✅ Final execution: ${isToolMode ? 'tool' : 'action'} mode (source: ${modeSource})`);
 
     const client = new ComfyUIClient({
       baseUrl: comfyUiUrl,
@@ -460,7 +460,7 @@ export class ComfyUi {
       logger: logger,
     });
 
-    logger.info('开始执行 ComfyUI 工作流', {
+    logger.info('Starting ComfyUI workflow execution', {
       url: comfyUiUrl,
       timeout,
       executionMode: isToolMode ? 'Tool' : 'Action',
@@ -474,10 +474,10 @@ export class ComfyUi {
         isToolMode,
       });
 
-      // 统一使用 nodeParameters 参数（Tool 和 Action 模式都使用相同配置方式）
+      // Use nodeParameters parameter (both Tool and Action modes use the same configuration method)
       const nodeParametersInput = this.getNodeParameter('nodeParameters', 0) as NodeParameterInput;
 
-      logger.info(`${isToolMode ? 'Tool' : 'Action'} 模式：处理节点参数`, {
+      logger.info(`${isToolMode ? 'Tool' : 'Action'} mode: Processing node parameters`, {
         parameterCount: nodeParametersInput?.nodeParameter?.length || 0,
       });
 
@@ -488,24 +488,24 @@ export class ComfyUi {
         timeout,
       });
 
-      logger.info('准备执行工作流', {
+      logger.info('Preparing workflow execution', {
         nodeCount: Object.keys(workflow).length,
         comfyUiUrl,
         workflow: JSON.stringify(workflow, null, 2),
       });
 
-      logger.info('正在执行 ComfyUI 工作流', { nodeCount: Object.keys(workflow).length, comfyUiUrl });
+      logger.info('Executing ComfyUI workflow', { nodeCount: Object.keys(workflow).length, comfyUiUrl });
       const result = await client.executeWorkflow(workflow);
 
       if (!result.success) {
-        logger.error('工作流执行失败', {
+        logger.error('Workflow execution failed', {
           error: result.error,
           errorDetails: result.errorDetails,
           nodeErrors: result.nodeErrors,
         });
 
         // Construct detailed error message
-        let errorMessage = `ComfyUI 工作流执行失败：${result.error}`;
+        let errorMessage = `ComfyUI workflow execution failed: ${result.error}`;
 
         // Add node error details if available
         if (result.nodeErrors) {
@@ -513,11 +513,11 @@ export class ComfyUi {
           for (const [nodeId, nodeError] of Object.entries(result.nodeErrors)) {
             if (nodeError.errors && nodeError.errors.length > 0) {
               const firstError = nodeError.errors[0];
-              nodeErrorMessages.push(`节点 ${nodeId}：${firstError.message}${firstError.details ? ` (${firstError.details})` : ''}`);
+              nodeErrorMessages.push(`Node ${nodeId}: ${firstError.message}${firstError.details ? ` (${firstError.details})` : ''}`);
             }
           }
           if (nodeErrorMessages.length > 0) {
-            errorMessage += `\n\n详细信息：\n${nodeErrorMessages.join('\n')}`;
+            errorMessage += `\n\nDetails:\n${nodeErrorMessages.join('\n')}`;
           }
         }
 
@@ -527,7 +527,7 @@ export class ComfyUi {
       let outputData: INodeExecutionData;
 
       if (isToolMode) {
-        logger.info('Tool 模式：返回 URL（不包含二进制数据）');
+        logger.info('Tool mode: Returning URLs (no binary data)');
         outputData = {
           json: {
             success: true,
@@ -538,7 +538,7 @@ export class ComfyUi {
           },
         };
       } else {
-        logger.info('Action 模式：返回完整二进制数据');
+        logger.info('Action mode: Returning full binary data');
         const { json, binary } = await client.processResults(result, outputBinaryKey);
         outputData = {
           json,
@@ -546,7 +546,7 @@ export class ComfyUi {
         };
       }
 
-      logger.info('工作流执行成功', {
+      logger.info('Workflow execution succeeded', {
         imageCount: outputData.json.imageCount || 0,
         videoCount: outputData.json.videoCount || 0,
       });
@@ -556,11 +556,11 @@ export class ComfyUi {
         { itemData: { item: 0 } }
       )];
     } catch (error) {
-      logger.error('工作流执行期间出错', error);
+      logger.error('Error during workflow execution', error);
       throw error;
     } finally {
       client.destroy();
-      logger.debug('客户端已销毁');
+      logger.debug('Client destroyed');
     }
   }
 }
