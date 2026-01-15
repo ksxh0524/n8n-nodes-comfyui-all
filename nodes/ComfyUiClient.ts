@@ -838,7 +838,7 @@ export class ComfyUIClient {
         healthy: true,
         message: 'ComfyUI server is accessible',
       };
-    } catch (error) {
+    } catch (error: unknown) {
       return {
         healthy: false,
         message: `ComfyUI server is not accessible: ${error instanceof Error ? error.message : String(error)}`,

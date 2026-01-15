@@ -373,7 +373,7 @@ export class ComfyUi {
     let workflow: Workflow;
     try {
       workflow = safeJsonParse(workflowJson, 'Workflow JSON') as Workflow;
-    } catch (error) {
+    } catch (error: unknown) {
       const errorMsg = error instanceof Error ? error.message : String(error);
       throw new NodeOperationError(this.getNode(), `Failed to parse workflow JSON: ${errorMsg}. Please ensure the JSON format is correct.`);
     }
@@ -555,7 +555,7 @@ export class ComfyUi {
         [outputData],
         { itemData: { item: 0 } }
       )];
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error('Error during workflow execution', error);
       throw error;
     } finally {

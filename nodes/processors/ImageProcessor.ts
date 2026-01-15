@@ -183,7 +183,7 @@ export class ImageProcessor {
           `Must be a valid HTTP/HTTPS URL.`
         );
       }
-    } catch (error) {
+    } catch (error: unknown) {
       // Handle validation errors
       if (error instanceof NodeOperationError) {
         throw error;
