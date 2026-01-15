@@ -27,9 +27,9 @@ export interface NodeParameterConfig {
    * Will be normalized to native boolean internally
    */
   booleanValue?: Booleanish;
-  imageSource?: 'binary' | 'url';
+  imageSource?: FileInputType;
   imageUrl?: string;
-  type?: 'text' | 'number' | 'boolean' | 'image' | 'file';
+  type?: ParameterType;
 }
 
 /**
@@ -37,6 +37,10 @@ export interface NodeParameterConfig {
  * String values are strictly parsed (only 'true' is truthy)
  */
 export type Booleanish = 'true' | 'false' | boolean;
+
+// Re-export parameter types from constants for type safety
+export type ParameterType = 'text' | 'number' | 'boolean' | 'file';
+export type FileInputType = 'binary' | 'url';
 
 export interface NodeParameterInput {
   nodeParameter: NodeParameterConfig[];

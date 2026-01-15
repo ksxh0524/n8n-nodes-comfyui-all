@@ -9,11 +9,12 @@
  */
 
 import { IExecuteFunctions, NodeOperationError } from 'n8n-workflow';
-import { NodeParameterConfig, Workflow } from './types';
+import { NodeParameterConfig, Workflow, ParameterType, FileInputType } from './types';
 import { safeJsonParse } from './validation';
 import { Logger } from './logger';
 import { ImageProcessor } from './processors/ImageProcessor';
 import { ParameterTypeHandler } from './processors/ParameterTypeHandler';
+import { VALID_PARAMETER_TYPES, VALID_FILE_INPUT_TYPES } from './constants';
 
 export interface ParameterProcessorConfig {
   executeFunctions: IExecuteFunctions;
@@ -45,7 +46,7 @@ interface ParameterValueConfig {
  * Image-specific configuration
  */
 interface ImageConfig {
-  source: 'binary' | 'url';
+  source: FileInputType;
   url?: string;
   binaryKey?: string;
 }
@@ -60,12 +61,12 @@ interface SingleParameterProcessConfig {
   paramName: string;
 
   // Parameter type
-  type: 'text' | 'number' | 'boolean' | 'image' | 'file';
+  type: ParameterType;
 
   // Value (grouped by type)
   value: ParameterValueConfig;
 
-  // File-specific (only used when type === 'image' or type === 'file')
+  // File-specific (only used when type === 'file')
   image?: ImageConfig;
 
   // Context
@@ -153,6 +154,42 @@ export class ParameterProcessor {
       imageUrl = '',
     } = config;
 
+    this.logger.debug(`processSingleParameter called`, {
+      nodeId,
+      parameterMode,
+      paramName,
+      type,
+      imageSource,
+      value,
+      valueType: typeof value,
+      valueLength: value?.length,
+      index
+    });
+
+    // Validate type is one of the allowed values
+    if (type && !VALID_PARAMETER_TYPES.includes(type)) {
+      throw new NodeOperationError(
+        this.executeFunctions.getNode(),
+        `Node Parameters ${index + 1}: Invalid type "${type}". Allowed types: ${VALID_PARAMETER_TYPES.join(', ')}.`
+      );
+    }
+
+    // Validate imageSource if type is file
+    if (type === 'file' && imageSource && !VALID_FILE_INPUT_TYPES.includes(imageSource)) {
+      throw new NodeOperationError(
+        this.executeFunctions.getNode(),
+        `Node Parameters ${index + 1}: Invalid file input type "${imageSource}" for file parameter. Allowed types: ${VALID_FILE_INPUT_TYPES.join(', ')}.`
+      );
+    }
+
+    // For file type with binary source, value must be provided
+    if (type === 'file' && imageSource === 'binary' && !value) {
+      throw new NodeOperationError(
+        this.executeFunctions.getNode(),
+        `Node Parameters ${index + 1}: Binary property name is required when File Input Type is set to Binary. Please provide the binary property name (e.g., "data", "image", "file") in the Value field.`
+      );
+    }
+
     // Validate node exists in workflow
     this.validateNodeExists(nodeId, index, workflow);
 
@@ -168,7 +205,7 @@ export class ParameterProcessor {
       await this.processSingleParameterMode({
         nodeId,
         paramName,
-        type: type as 'text' | 'number' | 'boolean' | 'image',
+        type: type as ParameterType,
         value: {
           text: value,
           number: numberValue,
@@ -314,10 +351,29 @@ export class ParameterProcessor {
     const imageUrl = image?.url || '';
     const binaryKey = image?.binaryKey || '';
 
+    this.logger.debug(`processSingleParameterMode: Extracted values`, {
+      type,
+      imageSource,
+      imageUrl,
+      binaryKey,
+      binaryKeyLength: binaryKey?.length,
+      'image?.source': image?.source,
+      'image?.binaryKey': image?.binaryKey,
+    });
+
     // Determine the value parameter based on type
     const valueParam = type === 'text' ? (typeValue as string) :
-                       type === 'image' && imageSource === 'binary' ? binaryKey :
+                       type === 'file' && imageSource === 'binary' ? binaryKey :
                        '';
+
+    this.logger.debug(`processSingleParameterMode: Calculated valueParam`, {
+      valueParam,
+      valueParamLength: valueParam?.length,
+      'type === \'text\'': type === 'text',
+      'type === \'file\'': type === 'file',
+      'imageSource === \'binary\'': imageSource === 'binary',
+      'condition result': type === 'file' && imageSource === 'binary',
+    });
 
     // Delegate to type handler
     const parsedValue = await this.typeHandler.processByType({

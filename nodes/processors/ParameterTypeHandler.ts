@@ -156,7 +156,6 @@ export class ParameterTypeHandler {
       case 'boolean':
         return this.processBoolean(booleanValue);
 
-      case 'image':
       case 'file':
         return await this.processImage({
           nodeId,

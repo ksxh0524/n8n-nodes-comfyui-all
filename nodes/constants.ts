@@ -129,3 +129,23 @@ export const VIDEO_MIME_TYPES: Record<string, string> = {
   'mkv': 'video/x-matroska',
   'gif': 'video/gif',
 } as const;
+
+// Parameter type constants
+export const PARAMETER_TYPES = {
+  TEXT: 'text',
+  NUMBER: 'number',
+  BOOLEAN: 'boolean',
+  FILE: 'file',
+} as const;
+
+// Parameter type collection for validation
+export const VALID_PARAMETER_TYPES = Object.values(PARAMETER_TYPES);
+
+// File input type constants
+export const FILE_INPUT_TYPES = {
+  URL: 'url',
+  BINARY: 'binary',
+} as const;
+
+// File input type collection for validation
+export const VALID_FILE_INPUT_TYPES = Object.values(FILE_INPUT_TYPES);

@@ -93,6 +93,24 @@ export class ImageProcessor {
   async processFromBinary(config: ProcessFromBinaryConfig): Promise<ImageUploadResult> {
     const { paramName, binaryPropertyName, index, uploadImage } = config;
 
+    // Validate binaryPropertyName is provided
+    if (!binaryPropertyName || binaryPropertyName.trim() === '') {
+      throw new NodeOperationError(
+        this.executeFunctions.getNode(),
+        `Node Parameters ${index + 1}: Binary property name cannot be empty for parameter "${paramName}". ` +
+        `Please specify the binary property name from your input data (e.g., "data", "image", "file"). ` +
+        `Check the previous node's "Output Binary Key" setting to see what binary property is available.`
+      );
+    }
+
+    this.logger.debug(`processFromBinary called with config`, {
+      paramName,
+      binaryPropertyName,
+      binaryPropertyNameType: typeof binaryPropertyName,
+      binaryPropertyNameLength: binaryPropertyName?.length,
+      index
+    });
+
     // Tool mode doesn't support binary input
     if (this.isToolMode) {
       throw new NodeOperationError(
@@ -102,12 +120,12 @@ export class ImageProcessor {
     }
 
     this.logger.info(`Getting binary data from input`, {
-      binaryProperty: binaryPropertyName || 'data',
+      binaryProperty: binaryPropertyName,
       paramName
     });
 
-    const { binaryData, availableKeys } = this.findBinaryData(binaryPropertyName || 'data', index);
-    this.validateBinaryData(binaryData, binaryPropertyName || 'data', index, availableKeys);
+    const { binaryData, availableKeys } = this.findBinaryData(binaryPropertyName, index);
+    this.validateBinaryData(binaryData, binaryPropertyName, index, availableKeys);
 
     // After validation, binaryData is guaranteed to be non-null
     if (!binaryData) {
@@ -117,10 +135,10 @@ export class ImageProcessor {
       );
     }
 
-    this.logger.debug(`Found binary property "${binaryPropertyName || 'data'}" in input`);
+    this.logger.debug(`Found binary property "${binaryPropertyName}" in input`);
 
     const buffer = this.decodeBinaryData(binaryData, index);
-    this.validateDecodedBuffer(buffer, binaryPropertyName || 'data', index, binaryData.mimeType);
+    this.validateDecodedBuffer(buffer, binaryPropertyName, index, binaryData.mimeType);
 
     const filename = binaryData.fileName || generateUniqueFilename(
       binaryData.mimeType?.split('/')[1] || 'png',
