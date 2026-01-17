@@ -686,11 +686,21 @@ export class ComfyUIClient {
       const nodeOutputObj = nodeOutput as { images?: unknown[]; videos?: unknown[]; gifs?: unknown[] };
 
       if (nodeOutputObj.images && Array.isArray(nodeOutputObj.images)) {
-        this.logger.info(`🖼️  Found ${nodeOutputObj.images.length} images in node ${nodeId}`);
         for (const image of nodeOutputObj.images) {
           const imageObj = image as { filename: string; subfolder?: string; type: string };
           const imageUrl = `/view?filename=${imageObj.filename}&subfolder=${imageObj.subfolder || ''}&type=${imageObj.type}`;
-          result.images?.push(imageUrl);
+
+          // Check file extension to determine actual type
+          // ComfyUI returns all files in the 'images' array, regardless of actual type
+          const ext = imageObj.filename.split('.').pop()?.toLowerCase() || '';
+
+          if (VIDEO_MIME_TYPES[ext]) {
+            this.logger.info(`🎬 Found video in images array: ${imageObj.filename} (node ${nodeId})`);
+            result.videos?.push(imageUrl);
+          } else {
+            this.logger.info(`🖼️  Found image in images array: ${imageObj.filename} (node ${nodeId})`);
+            result.images?.push(imageUrl);
+          }
         }
       }
 
