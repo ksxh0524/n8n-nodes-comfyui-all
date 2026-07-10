@@ -4,12 +4,6 @@
 
 [![npm version](https://badge.fury.io/js/n8n-nodes-comfyui-all.svg)](https://www.npmjs.org/package/n8n-nodes-comfyui-all)
 
-## Video Tutorials
-
-| Platform | Link | Description |
-|----------|------|-------------|
-| 📺 YouTube | [Watch Tutorial](https://youtu.be/wsbo3hBKsPM) | English tutorial |
-| 📺 Bilibili | [观看教程](https://www.bilibili.com/video/BV1ffrFBTEdQ/?vd_source=6485fe2fae664d8b09cb2e2fd7df5ef7) | 中文教程 |
 
 ## What This Does
 
